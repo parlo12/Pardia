@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/rolflouisdor/Desktop/RMH-Real-Estate/Pardia-website init:*)",
+      "Bash(git -C /Users/rolflouisdor/Desktop/RMH-Real-Estate/Pardia-website add -A)",
+      "Bash(git -C /Users/rolflouisdor/Desktop/RMH-Real-Estate/Pardia-website status --short)"
+    ]
+  }
+}
