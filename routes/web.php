@@ -5,6 +5,7 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\CheckoutController;
+use App\Http\Controllers\TelemetryDashboardController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
@@ -29,6 +30,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', function () {
         return \Inertia\Inertia::render('Dashboard');
     })->middleware('verified')->name('dashboard');
+
+    Route::get('/telemetry', [TelemetryDashboardController::class, 'index'])->name('telemetry.index');
+    Route::get('/telemetry/{deviceId}', [TelemetryDashboardController::class, 'show'])->name('telemetry.show');
 });
 
 require __DIR__.'/auth.php';
