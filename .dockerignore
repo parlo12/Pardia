@@ -1,0 +1,43 @@
+node_modules
+vendor
+.git
+.github
+.env
+.env.backup
+.env.production
+
+# Build artifacts (rebuilt in Docker)
+public/build
+public/hot
+public/storage
+
+# Development files
+tests
+.phpunit.result.cache
+phpunit.xml
+.editorconfig
+
+# IDE files
+.idea
+.vscode
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker files (not needed inside container)
+docker-compose.yml
+docker-compose.*.yml
+
+# Logs
+storage/logs/*.log
+
+# Documentation
+*.md
+!README.md
+
+# Claude/AI config
+.claude
+context.md
