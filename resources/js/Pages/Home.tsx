@@ -28,12 +28,33 @@ const staggerContainer = {
     },
 };
 
+interface Recommendation {
+    product_id: number;
+    product: {
+        id: number;
+        name: string;
+        slug: string;
+        short_description: string | null;
+        price: string;
+        is_free: boolean;
+        type: string;
+        thumbnail: string | null;
+        features: string[] | null;
+    };
+    device_id: string;
+    device_nickname: string | null;
+    reason: string;
+    severity: 'critical' | 'warning' | 'info';
+    priority: number;
+}
+
 interface HomeProps {
     featuredProducts: Product[];
     categories: Category[];
+    recommendations?: Recommendation[];
 }
 
-export default function Home({ featuredProducts, categories }: HomeProps) {
+export default function Home({ featuredProducts, categories, recommendations = [] }: HomeProps) {
     return (
         <MainLayout>
             <Head title="Home" />
@@ -106,6 +127,68 @@ export default function Home({ featuredProducts, categories }: HomeProps) {
                     <div className="h-[600px] w-[600px] rounded-full bg-gradient-to-r from-blue-100/40 to-purple-100/40 blur-3xl" />
                 </div>
             </section>
+
+            {/* Personalized Recommendations */}
+            {recommendations.length > 0 && (
+                <section className="bg-white py-20 sm:py-24 border-b border-gray-100">
+                    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                        <motion.div
+                            className="text-center"
+                            initial="hidden"
+                            whileInView="visible"
+                            viewport={{ once: true, margin: '-100px' }}
+                            variants={fadeInUp}
+                            transition={{ duration: 0.6 }}
+                        >
+                            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600">
+                                <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+                                </svg>
+                            </div>
+                            <h2 className="text-sm font-semibold uppercase tracking-widest text-[#0071e3]">
+                                Recommended for You
+                            </h2>
+                            <p className="mt-3 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+                                Based on Your Device
+                            </p>
+                            <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-500">
+                                Personalized suggestions from your Pardia Battery Management data.
+                            </p>
+                        </motion.div>
+
+                        <motion.div
+                            className="mt-12 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4"
+                            initial="hidden"
+                            whileInView="visible"
+                            viewport={{ once: true, margin: '-50px' }}
+                            variants={staggerContainer}
+                        >
+                            {recommendations.map((rec) => (
+                                <RecommendationCard key={rec.product_id} rec={rec} />
+                            ))}
+                        </motion.div>
+
+                        <motion.div
+                            className="mt-10 text-center"
+                            initial="hidden"
+                            whileInView="visible"
+                            viewport={{ once: true }}
+                            variants={fadeInUp}
+                            transition={{ duration: 0.6 }}
+                        >
+                            <Link
+                                href={route('devices.index')}
+                                className="inline-flex items-center text-sm font-medium text-gray-400 transition-colors hover:text-gray-600"
+                            >
+                                Manage linked devices
+                                <svg className="ml-1 h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                                </svg>
+                            </Link>
+                        </motion.div>
+                    </div>
+                </section>
+            )}
 
             {/* Featured Products Section */}
             {featuredProducts.length > 0 && (
@@ -461,6 +544,66 @@ function ProductCard({
                             </svg>
                         </span>
                     </div>
+                </div>
+            </Link>
+        </motion.div>
+    );
+}
+
+function RecommendationCard({ rec }: { rec: Recommendation }) {
+    const severityStyles = {
+        critical: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-100', dot: 'bg-red-500' },
+        warning: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-100', dot: 'bg-amber-500' },
+        info: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-100', dot: 'bg-blue-500' },
+    };
+    const style = severityStyles[rec.severity];
+
+    return (
+        <motion.div variants={fadeInUp} transition={{ duration: 0.5 }}>
+            <Link
+                href={route('products.show', rec.product.slug)}
+                className="group block h-full rounded-2xl bg-white p-5 ring-1 ring-gray-100 transition-all duration-300 hover:shadow-lg hover:ring-gray-200"
+            >
+                {/* Severity reason badge */}
+                <div className={`inline-flex items-center gap-1.5 rounded-full ${style.bg} ${style.border} border px-3 py-1 mb-4`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
+                    <span className={`text-[11px] font-medium ${style.text} line-clamp-1`}>
+                        {rec.reason}
+                    </span>
+                </div>
+
+                <h3 className="text-base font-semibold text-gray-900 transition-colors group-hover:text-[#0071e3] line-clamp-2">
+                    {rec.product.name}
+                </h3>
+
+                {rec.product.short_description && (
+                    <p className="mt-1.5 text-sm text-gray-500 line-clamp-2">
+                        {rec.product.short_description}
+                    </p>
+                )}
+
+                {/* Features preview */}
+                {rec.product.features && rec.product.features.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                        {rec.product.features.slice(0, 3).map((feat, i) => (
+                            <span key={i} className="rounded-md bg-gray-50 px-2 py-0.5 text-[10px] font-medium text-gray-500">
+                                {feat}
+                            </span>
+                        ))}
+                    </div>
+                )}
+
+                <div className="mt-4 flex items-center justify-between">
+                    {rec.product.is_free ? (
+                        <span className="text-base font-bold text-green-600">Free</span>
+                    ) : (
+                        <span className="text-base font-bold text-gray-900">
+                            ${parseFloat(rec.product.price).toFixed(2)}
+                        </span>
+                    )}
+                    <span className="text-xs font-medium text-[#0071e3] opacity-0 transition-opacity group-hover:opacity-100">
+                        View Details
+                    </span>
                 </div>
             </Link>
         </motion.div>

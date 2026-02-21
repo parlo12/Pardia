@@ -21,8 +21,29 @@ interface LinkedDevice {
     snapshot_count: number;
 }
 
+interface Recommendation {
+    product_id: number;
+    product: {
+        id: number;
+        name: string;
+        slug: string;
+        short_description: string | null;
+        price: string;
+        is_free: boolean;
+        type: string;
+        thumbnail: string | null;
+        features: string[] | null;
+    };
+    device_id: string;
+    device_nickname: string | null;
+    reason: string;
+    severity: 'critical' | 'warning' | 'info';
+    priority: number;
+}
+
 interface Props {
     devices: LinkedDevice[];
+    recommendations?: Recommendation[];
 }
 
 const fadeInUp = {
@@ -289,7 +310,7 @@ function EmptyState() {
     );
 }
 
-export default function DevicesIndex({ devices }: Props) {
+export default function DevicesIndex({ devices, recommendations = [] }: Props) {
     return (
         <MainLayout>
             <Head title="My Devices" />
@@ -346,8 +367,66 @@ export default function DevicesIndex({ devices }: Props) {
                     ) : (
                         <EmptyState />
                     )}
+
+                    {/* Product Recommendations */}
+                    {recommendations.length > 0 && (
+                        <motion.div
+                            initial="hidden"
+                            animate="visible"
+                            variants={fadeInUp}
+                            transition={{ duration: 0.6, delay: 0.2 }}
+                            className="mt-12"
+                        >
+                            <h2 className="text-xl font-bold text-gray-900">Recommended for Your Devices</h2>
+                            <p className="mt-1 text-sm text-gray-500">Based on diagnostics from Pardia Battery Management</p>
+
+                            <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {recommendations.map((rec) => (
+                                    <RecommendationCard key={rec.product_id} rec={rec} />
+                                ))}
+                            </div>
+                        </motion.div>
+                    )}
                 </div>
             </section>
         </MainLayout>
+    );
+}
+
+function RecommendationCard({ rec }: { rec: Recommendation }) {
+    const severityStyles = {
+        critical: { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500' },
+        warning: { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' },
+        info: { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500' },
+    };
+    const style = severityStyles[rec.severity];
+
+    return (
+        <Link
+            href={route('products.show', rec.product.slug)}
+            className="group flex items-start gap-4 rounded-xl bg-white p-4 ring-1 ring-gray-100 transition-all hover:shadow-md hover:ring-gray-200"
+        >
+            <div className="flex-1 min-w-0">
+                <div className={`inline-flex items-center gap-1.5 rounded-full ${style.bg} px-2.5 py-0.5 mb-2`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
+                    <span className={`text-[10px] font-medium ${style.text} line-clamp-1`}>
+                        {rec.reason}
+                    </span>
+                </div>
+                <h4 className="text-sm font-semibold text-gray-900 group-hover:text-[#0071e3] transition-colors line-clamp-1">
+                    {rec.product.name}
+                </h4>
+                {rec.product.short_description && (
+                    <p className="mt-0.5 text-xs text-gray-500 line-clamp-1">{rec.product.short_description}</p>
+                )}
+            </div>
+            <div className="flex-shrink-0 text-right">
+                {rec.product.is_free ? (
+                    <span className="text-sm font-bold text-green-600">Free</span>
+                ) : (
+                    <span className="text-sm font-bold text-gray-900">${parseFloat(rec.product.price).toFixed(2)}</span>
+                )}
+            </div>
+        </Link>
     );
 }

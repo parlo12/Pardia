@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\BatterySnapshot;
 use App\Models\Device;
+use App\Services\RecommendationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -11,7 +12,7 @@ use Inertia\Response;
 
 class DeviceLinkController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request, RecommendationService $recommendationService): Response
     {
         $user = $request->user();
 
@@ -46,8 +47,11 @@ class DeviceLinkController extends Controller
             ];
         });
 
+        $recommendations = $recommendationService->forUser($user);
+
         return Inertia::render('Devices/Index', [
             'devices' => $devices,
+            'recommendations' => $recommendations,
         ]);
     }
 

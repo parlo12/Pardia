@@ -11,13 +11,17 @@ class Product extends Model
         'category_id', 'name', 'slug', 'description', 'short_description',
         'price', 'is_free', 'type', 'download_url', 'version',
         'images', 'thumbnail', 'model_3d_url', 'features',
-        'system_requirements', 'stock', 'is_active', 'is_featured',
+        'system_requirements', 'compatible_models', 'recommendation_trigger',
+        'trigger_threshold', 'recommendation_priority',
+        'stock', 'is_active', 'is_featured',
     ];
 
     protected $casts = [
         'images' => 'array',
         'features' => 'array',
         'system_requirements' => 'array',
+        'compatible_models' => 'array',
+        'trigger_threshold' => 'decimal:2',
         'is_free' => 'boolean',
         'is_active' => 'boolean',
         'is_featured' => 'boolean',
