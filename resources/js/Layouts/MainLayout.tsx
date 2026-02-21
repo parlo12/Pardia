@@ -134,13 +134,13 @@ export default function MainLayout({ children }: PropsWithChildren) {
                                             />
                                             <div className="absolute right-0 z-50 mt-3 w-48 overflow-hidden rounded-2xl bg-white py-1.5 shadow-lg ring-1 ring-black/5">
                                                 <Link
-                                                    href={route('dashboard')}
+                                                    href={route('devices.index')}
                                                     className="block px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50"
                                                     onClick={() =>
                                                         setUserDropdownOpen(false)
                                                     }
                                                 >
-                                                    Dashboard
+                                                    My Devices
                                                 </Link>
                                                 <Link
                                                     href={route('profile.edit')}
@@ -283,11 +283,11 @@ export default function MainLayout({ children }: PropsWithChildren) {
                                     </span>
                                 </div>
                                 <Link
-                                    href={route('dashboard')}
+                                    href={route('devices.index')}
                                     className="block rounded-lg px-3 py-2.5 text-base font-medium text-gray-900 transition-colors hover:bg-gray-50"
                                     onClick={() => setMobileMenuOpen(false)}
                                 >
-                                    Dashboard
+                                    My Devices
                                 </Link>
                                 <Link
                                     href={route('profile.edit')}

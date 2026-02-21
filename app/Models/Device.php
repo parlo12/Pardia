@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Device extends Model
@@ -32,5 +33,12 @@ class Device extends Model
     public function weeklyReports(): HasMany
     {
         return $this->hasMany(WeeklyReport::class, 'device_id', 'device_id');
+    }
+
+    public function users(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'user_devices', 'device_id', 'user_id')
+            ->withPivot('nickname', 'linked_at')
+            ->withTimestamps();
     }
 }

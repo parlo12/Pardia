@@ -5,6 +5,7 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\CheckoutController;
+use App\Http\Controllers\DeviceLinkController;
 use App\Http\Controllers\TelemetryDashboardController;
 use Illuminate\Support\Facades\Route;
 
@@ -28,8 +29,14 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     Route::get('/dashboard', function () {
-        return \Inertia\Inertia::render('Dashboard');
-    })->middleware('verified')->name('dashboard');
+        return redirect()->route('home');
+    })->name('dashboard');
+
+    Route::get('/devices', [DeviceLinkController::class, 'index'])->name('devices.index');
+    Route::get('/devices/link', [DeviceLinkController::class, 'create'])->name('devices.link');
+    Route::post('/devices', [DeviceLinkController::class, 'store'])->name('devices.store');
+    Route::patch('/devices/{deviceId}', [DeviceLinkController::class, 'update'])->name('devices.update');
+    Route::delete('/devices/{deviceId}', [DeviceLinkController::class, 'destroy'])->name('devices.destroy');
 
     Route::get('/telemetry', [TelemetryDashboardController::class, 'index'])->name('telemetry.index');
     Route::get('/telemetry/{deviceId}', [TelemetryDashboardController::class, 'show'])->name('telemetry.show');
