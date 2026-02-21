@@ -10,6 +10,7 @@ Complete guide to deploy the Pardia website from GitHub to a DigitalOcean Drople
 - Nginx config, Supervisor, entrypoint script
 - Trusted proxies configured for HTTPS behind load balancer
 - SSH access configured: `ssh pardia` → `root@45.55.34.241` using `~/.ssh/id_ed25519_pardia`
+- **CI/CD deploy SSH key created**: `~/.ssh/id_ed25519_pardia_deploy` (already added to the droplet)
 
 ## What Needs to Be Done
 
@@ -158,25 +159,29 @@ Note: With 1GB RAM on the droplet, this will be tight. Consider upgrading to the
 
 ---
 
-## Step 5: Add Your SSH Key to GitHub Secrets
+## Step 5: Add Secrets to GitHub
 
-You need to add the **private** SSH key so GitHub Actions can deploy to the droplet.
+A dedicated CI/CD SSH key has been created and already added to the droplet. You just need to add it to GitHub.
 
-1. On your local machine, copy the private key:
-   ```bash
-   cat ~/.ssh/id_ed25519_pardia
-   ```
-
-2. Go to your GitHub repository: **https://github.com/parlo12/Pardia**
-3. Go to **Settings** → **Secrets and variables** → **Actions**
-4. Click **New repository secret** and add each of these:
+1. Go to your GitHub repository: **https://github.com/parlo12/Pardia**
+2. Go to **Settings** → **Secrets and variables** → **Actions**
+3. Click **New repository secret** and add each of these **4 secrets**:
 
 | Secret Name                  | Value                                                    |
 |-----------------------------|----------------------------------------------------------|
-| `SSH_PRIVATE_KEY`           | Contents of `~/.ssh/id_ed25519_pardia` (the full private key) |
+| `SSH_PRIVATE_KEY`           | Contents of `~/.ssh/id_ed25519_pardia_deploy` (see below) |
 | `DROPLET_IP`               | `45.55.34.241`                                           |
 | `DIGITALOCEAN_ACCESS_TOKEN` | Your DigitalOcean API token (see below)                  |
 | `DOCR_REGISTRY`             | Your registry name from Step 3 (e.g., `pardia-registry`) |
+
+### Getting the SSH private key:
+The deploy key is at `~/.ssh/id_ed25519_pardia_deploy` on your local machine. Copy the entire contents:
+```bash
+cat ~/.ssh/id_ed25519_pardia_deploy
+```
+Paste the **full output** (including the `-----BEGIN` and `-----END` lines) as the `SSH_PRIVATE_KEY` secret value.
+
+This key is separate from your personal `id_ed25519_pardia` key — it was created specifically for GitHub Actions and is already authorized on the droplet.
 
 ### How to create a DigitalOcean API Token:
 1. Go to **DigitalOcean Dashboard** → **API** → **Tokens**
