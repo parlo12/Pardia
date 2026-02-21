@@ -1,168 +1,300 @@
 # Pardia Deployment Instructions
 
-Complete guide to deploy the Pardia website from GitHub to DigitalOcean using Docker.
+Complete guide to deploy the Pardia website from GitHub to a DigitalOcean Droplet using Docker.
 
-## Prerequisites
+## What's Already Done
 
-- A DigitalOcean account (https://cloud.digitalocean.com)
-- The `doctl` CLI installed locally (optional, for debugging)
-- The GitHub repository: https://github.com/parlo12/Pardia.git
+- Dockerfile (multi-stage: Node build + PHP-FPM/Nginx runtime)
+- docker-compose.yml for local testing
+- GitHub Actions workflow (`.github/workflows/deploy.yml`)
+- Nginx config, Supervisor, entrypoint script
+- Trusted proxies configured for HTTPS behind load balancer
+- SSH access configured: `ssh pardia` → `root@45.55.34.241` using `~/.ssh/id_ed25519_pardia`
+
+## What Needs to Be Done
+
+The following steps must be completed on DigitalOcean and GitHub to finish the CI/CD pipeline.
 
 ---
 
-## Step 1: Create a DigitalOcean Container Registry (DOCR)
+## Step 1: Install Docker on the Droplet
 
-1. Go to **DigitalOcean Dashboard** > **Container Registry**
+SSH into the droplet and install Docker:
+
+```bash
+ssh pardia
+```
+
+Then run these commands on the server:
+
+```bash
+# Update packages
+apt update && apt upgrade -y
+
+# Install Docker
+curl -fsSL https://get.docker.com | sh
+
+# Verify Docker is installed
+docker --version
+docker compose version
+
+# Enable Docker to start on boot
+systemctl enable docker
+```
+
+---
+
+## Step 2: Create the Production .env File on the Droplet
+
+Still on the server via `ssh pardia`:
+
+```bash
+# Create app config directory
+mkdir -p /root/pardia
+
+# Create the .env file
+nano /root/pardia/.env
+```
+
+Paste the following (fill in your real values):
+
+```
+APP_NAME=Pardia
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://your-domain.com
+APP_KEY=base64:GENERATE_WITH_php_artisan_key_generate_--show
+
+DB_CONNECTION=mysql
+DB_HOST=your-db-host
+DB_PORT=25060
+DB_DATABASE=pardia
+DB_USERNAME=doadmin
+DB_PASSWORD=your-db-password
+MYSQL_ATTR_SSL_CA=/etc/ssl/certs/ca-certificates.crt
+
+SESSION_DRIVER=database
+CACHE_STORE=database
+QUEUE_CONNECTION=database
+
+STRIPE_KEY=pk_live_your_live_stripe_key
+STRIPE_SECRET=sk_live_your_live_stripe_secret
+VITE_STRIPE_KEY=pk_live_your_live_stripe_key
+
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.your-email-provider.com
+MAIL_PORT=587
+MAIL_USERNAME=your-email
+MAIL_PASSWORD=your-email-password
+MAIL_FROM_ADDRESS=hello@pardia.com
+MAIL_FROM_NAME=Pardia
+```
+
+**To generate APP_KEY** (run locally where PHP is installed):
+```bash
+php artisan key:generate --show
+```
+Copy the output (e.g., `base64:xxxxxxx...`) and paste it as the `APP_KEY` value.
+
+---
+
+## Step 3: Create a DigitalOcean Container Registry (DOCR)
+
+1. Go to **DigitalOcean Dashboard** → **Container Registry**
 2. Click **Create Registry**
 3. Choose a name (e.g., `pardia-registry`)
-4. Select **Starter** plan (free, 500 MB — sufficient to start)
-5. Choose the region closest to your users
+4. Select **Starter** plan (free, 500 MB)
+5. Region: **New York** (same as the droplet)
 6. Click **Create Registry**
-7. Note down the registry name (e.g., `pardia-registry`) — you'll need it for GitHub secrets
+7. Note down the registry name — you'll need it for GitHub secrets
 
 ---
 
-## Step 2: Create a DigitalOcean Managed MySQL Database
+## Step 4: Set Up a Database
 
-1. Go to **Databases** > **Create Database Cluster**
+You have two options:
+
+### Option A: DigitalOcean Managed MySQL (Recommended)
+
+1. Go to **Databases** → **Create Database Cluster**
 2. Choose **MySQL 8**
-3. Select plan: **Basic** ($15/mo for 1 GB RAM, 10 GB disk) is sufficient to start
-4. Choose the same region as your container registry
+3. Plan: **Basic** ($15/mo, 1 GB RAM, 10 GB disk)
+4. Region: **New York** (same as droplet)
 5. Name it: `pardia-db`
 6. Click **Create Database Cluster**
-7. Once created, go to the **Connection Details** tab and note:
-   - **Host** (e.g., `pardia-db-do-user-xxxxx-0.db.ondigitalocean.com`)
-   - **Port** (`25060`)
-   - **Username** (`doadmin`)
-   - **Password** (shown once, save it)
-   - **Database** — create one called `pardia` via the **Users & Databases** tab
-   - **SSL Mode** — download the CA certificate if required
+7. Once created, go to **Users & Databases** tab → create a database called `pardia`
+8. Go to **Connection Details** tab and note: Host, Port, Username, Password
+9. Go to **Settings** → **Trusted Sources** → add the droplet IP: `45.55.34.241`
+10. Update `/root/pardia/.env` on the droplet with the DB credentials
+
+### Option B: MySQL on the Droplet (saves $15/mo but uses droplet RAM)
+
+SSH into the droplet and run:
+
+```bash
+# Run MySQL in Docker
+docker run -d \
+  --name pardia-mysql \
+  --restart unless-stopped \
+  -e MYSQL_ROOT_PASSWORD=rootsecret \
+  -e MYSQL_DATABASE=pardia \
+  -e MYSQL_USER=pardia \
+  -e MYSQL_PASSWORD=secret \
+  -p 127.0.0.1:3306:3306 \
+  -v mysql_data:/var/lib/mysql \
+  mysql:8.0
+```
+
+Then update `/root/pardia/.env`:
+```
+DB_HOST=host.docker.internal
+DB_PORT=3306
+DB_DATABASE=pardia
+DB_USERNAME=pardia
+DB_PASSWORD=secret
+```
+
+Note: With 1GB RAM on the droplet, this will be tight. Consider upgrading to the 2GB droplet ($12/mo) if using this option.
 
 ---
 
-## Step 3: Create a DigitalOcean App Platform App
+## Step 5: Add Your SSH Key to GitHub Secrets
 
-1. Go to **Apps** > **Create App**
-2. Choose **DigitalOcean Container Registry** as the source
-3. Select your registry and the `pardia-web` image
-4. Configure the app:
+You need to add the **private** SSH key so GitHub Actions can deploy to the droplet.
 
-### Resource Settings
-   - **Instance Size**: Basic ($5/mo) or Professional ($12/mo)
-   - **Instance Count**: 1 (scale up later)
-   - **HTTP Port**: `8080`
-
-### Environment Variables
-   Set these in the App Platform **Settings** > **App-Level Environment Variables**:
-
-   ```
-   APP_NAME=Pardia
-   APP_ENV=production
-   APP_DEBUG=false
-   APP_URL=https://your-domain.com
-   APP_KEY=base64:GENERATE_THIS_WITH_php_artisan_key_generate
-
-   DB_CONNECTION=mysql
-   DB_HOST=your-db-host-from-step-2
-   DB_PORT=25060
-   DB_DATABASE=pardia
-   DB_USERNAME=doadmin
-   DB_PASSWORD=your-db-password-from-step-2
-   MYSQL_ATTR_SSL_CA=/etc/ssl/certs/ca-certificates.crt
-
-   SESSION_DRIVER=database
-   CACHE_STORE=database
-   QUEUE_CONNECTION=database
-
-   STRIPE_KEY=pk_live_your_live_stripe_key
-   STRIPE_SECRET=sk_live_your_live_stripe_secret
-   VITE_STRIPE_KEY=${STRIPE_KEY}
-
-   MAIL_MAILER=smtp
-   MAIL_HOST=smtp.your-email-provider.com
-   MAIL_PORT=587
-   MAIL_USERNAME=your-email
-   MAIL_PASSWORD=your-email-password
-   MAIL_FROM_ADDRESS=hello@pardia.com
-   MAIL_FROM_NAME=Pardia
-   ```
-
-   **To generate APP_KEY locally:**
+1. On your local machine, copy the private key:
    ```bash
-   php artisan key:generate --show
+   cat ~/.ssh/id_ed25519_pardia
    ```
-   Copy the output (e.g., `base64:xxxxxxx...`) and paste it as the `APP_KEY` value.
 
-### Health Check
-   - Set the health check path to `/up`
+2. Go to your GitHub repository: **https://github.com/parlo12/Pardia**
+3. Go to **Settings** → **Secrets and variables** → **Actions**
+4. Click **New repository secret** and add each of these:
 
-5. Click **Create Resources**
-
----
-
-## Step 4: Configure GitHub Secrets
-
-Go to your GitHub repository **Settings** > **Secrets and variables** > **Actions** and add these **Repository Secrets**:
-
-| Secret Name                  | Value                                           |
-|-----------------------------|------------------------------------------------|
-| `DIGITALOCEAN_ACCESS_TOKEN` | Your DigitalOcean API token (create at API > Tokens) |
-| `DOCR_REGISTRY`             | Your registry name (e.g., `pardia-registry`)   |
-| `DIGITALOCEAN_APP_ID`       | Your App Platform app ID (find in app URL or via `doctl apps list`) |
+| Secret Name                  | Value                                                    |
+|-----------------------------|----------------------------------------------------------|
+| `SSH_PRIVATE_KEY`           | Contents of `~/.ssh/id_ed25519_pardia` (the full private key) |
+| `DROPLET_IP`               | `45.55.34.241`                                           |
+| `DIGITALOCEAN_ACCESS_TOKEN` | Your DigitalOcean API token (see below)                  |
+| `DOCR_REGISTRY`             | Your registry name from Step 3 (e.g., `pardia-registry`) |
 
 ### How to create a DigitalOcean API Token:
-1. Go to **API** > **Tokens** > **Generate New Token**
-2. Name it: `github-deploy`
-3. Give it **Read + Write** scope
-4. Copy the token immediately (it's only shown once)
-
-### How to find your App ID:
-- In the App Platform dashboard URL: `https://cloud.digitalocean.com/apps/YOUR-APP-ID`
-- Or run: `doctl apps list` and copy the ID column
+1. Go to **DigitalOcean Dashboard** → **API** → **Tokens**
+2. Click **Generate New Token**
+3. Name it: `github-deploy`
+4. Give it **Read + Write** scope
+5. Copy the token immediately (it's only shown once)
 
 ---
 
-## Step 5: Configure Custom Domain & SSL
+## Step 6: Log the Droplet into DOCR (One-Time Setup)
 
-1. In the App Platform dashboard, go to **Settings** > **Domains**
-2. Click **Add Domain**
-3. Enter your domain (e.g., `pardia.com` or `shop.pardia.com`)
-4. Choose **We manage your domain** or **You manage your domain**:
+SSH into the droplet and authenticate Docker with the container registry:
 
-   **If DigitalOcean manages your domain:**
-   - Point your domain's nameservers to DigitalOcean's nameservers
+```bash
+ssh pardia
 
-   **If you manage your domain (recommended):**
-   - Add a CNAME record pointing to your app's default URL
-   - Example: `shop.pardia.com` → `pardia-web-xxxxx.ondigitalocean.app`
+# Install doctl (DigitalOcean CLI)
+snap install doctl
+doctl auth init
+# Paste your DigitalOcean API token when prompted
 
-5. SSL is automatically provisioned by App Platform via Let's Encrypt
+# Log Docker into the registry
+doctl registry login
+```
 
 ---
 
-## Step 6: Switch to Live Stripe Keys
+## Step 7: Configure Domain & SSL
+
+### Point your domain to the droplet
+
+Add an **A record** in your DNS provider:
+- **Type**: A
+- **Name**: `@` (or `shop` for a subdomain)
+- **Value**: `45.55.34.241`
+- **TTL**: 3600
+
+### Set up SSL with Caddy (Recommended — automatic HTTPS)
+
+On the droplet, install Caddy as a reverse proxy for automatic SSL:
+
+```bash
+ssh pardia
+
+# Install Caddy
+apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
+apt update
+apt install caddy
+```
+
+Create the Caddy config:
+
+```bash
+nano /etc/caddy/Caddyfile
+```
+
+Paste (replace `your-domain.com` with your actual domain):
+
+```
+your-domain.com {
+    reverse_proxy localhost:8080
+}
+```
+
+Then restart Caddy:
+
+```bash
+systemctl restart caddy
+```
+
+Caddy automatically provisions and renews Let's Encrypt SSL certificates.
+
+**Important**: If using Caddy on port 80/443, update the Docker run command in the GitHub Actions workflow. Change `-p 80:8080` to `-p 8080:8080` so Caddy handles external traffic and proxies to the container on port 8080. The current workflow already uses port 8080 internally.
+
+### Alternative: Use Nginx + Certbot for SSL
+
+If you prefer Nginx over Caddy:
+
+```bash
+apt install certbot python3-certbot-nginx
+certbot --nginx -d your-domain.com
+```
+
+---
+
+## Step 8: Switch to Live Stripe Keys
 
 1. Go to https://dashboard.stripe.com
 2. Toggle from **Test mode** to **Live mode**
-3. Go to **Developers** > **API keys**
+3. Go to **Developers** → **API keys**
 4. Copy your **Publishable key** (`pk_live_...`) and **Secret key** (`sk_live_...`)
-5. Update the `STRIPE_KEY` and `STRIPE_SECRET` environment variables in App Platform
+5. Update `STRIPE_KEY` and `STRIPE_SECRET` in `/root/pardia/.env` on the droplet
+6. Restart the container: `docker restart pardia-app`
 
 ---
 
-## Step 7: Verify Deployment
+## Step 9: Test the Deployment
 
-Once the GitHub Action runs and deploys:
+Push a commit to `main` to trigger the CI/CD pipeline:
 
-1. Visit your app URL (the App Platform default URL or your custom domain)
-2. Verify:
+```bash
+git add . && git commit --allow-empty -m "Test deployment" && git push
+```
+
+Then monitor the deployment:
+
+1. Go to **GitHub** → **Actions** tab → watch the workflow run
+2. Once it completes, visit your domain (or `http://45.55.34.241`)
+3. Verify:
    - Home page loads with products
    - User registration works
    - Device linking works
    - Product browsing and cart work
    - Checkout redirects to Stripe
-   - `/up` health check returns 200
-3. Check logs: App Platform dashboard > **Runtime Logs**
+   - `http://your-domain.com/up` returns 200
 
 ---
 
@@ -172,81 +304,106 @@ The pipeline is fully automated after setup:
 
 ```
 Push to main → GitHub Actions triggers →
-  1. Builds Docker image (multi-stage: Node + PHP)
-  2. Pushes to DigitalOcean Container Registry
-  3. Triggers App Platform redeployment
-  4. App Platform pulls new image and deploys
+  1. Builds Docker image (multi-stage: Node frontend + PHP app)
+  2. Pushes image to DigitalOcean Container Registry
+  3. SSHs into droplet (45.55.34.241)
+  4. Pulls latest image and restarts container
 ```
 
 Every push to `main` automatically deploys to production.
 
 ---
 
-## Local Testing with Docker
+## Useful Commands
 
-To test the Docker setup locally before deploying:
+### On the droplet (via `ssh pardia`):
 
 ```bash
-# Copy and configure .env
-cp .env.example .env
-# Edit .env — set APP_KEY, DB_CONNECTION=mysql, etc.
+# View running containers
+docker ps
 
-# Build and start all services
-docker compose up --build
+# View app logs
+docker logs pardia-app -f
 
-# Visit http://localhost
+# Restart the app
+docker restart pardia-app
+
+# Run artisan commands inside the container
+docker exec pardia-app php artisan migrate:status
+docker exec pardia-app php artisan db:seed --class=ProductSeeder --force
+docker exec pardia-app php artisan db:seed --class=ReplacementPartSeeder --force
+
+# Enter the container shell
+docker exec -it pardia-app sh
+
+# View Nginx logs
+docker exec pardia-app cat /var/log/nginx/error.log
+
+# Check disk usage
+df -h
+
+# Check memory usage
+free -h
 ```
-
-This starts the app, MySQL, and Redis locally in containers.
 
 ---
 
-## Running Database Seeders in Production
+## Running Database Seeders (First Deploy)
 
-After first deploy, you may want to seed initial product data:
+After the first deployment, seed the product data:
 
 ```bash
-# SSH into the app container (or use App Platform console)
-php artisan db:seed --class=ProductSeeder --force
-php artisan db:seed --class=ReplacementPartSeeder --force
+ssh pardia
+docker exec pardia-app php artisan db:seed --class=ProductSeeder --force
+docker exec pardia-app php artisan db:seed --class=ReplacementPartSeeder --force
 ```
-
-On App Platform, use the **Console** tab in your app dashboard to run these commands.
 
 ---
 
 ## Troubleshooting
 
-### App won't start
-- Check **Runtime Logs** in App Platform
-- Verify all environment variables are set (especially `APP_KEY` and `DB_*`)
-- Ensure the database is accessible from the app (same region, trusted sources configured)
+### Container won't start
+```bash
+ssh pardia
+docker logs pardia-app
+```
+Check for missing env vars (especially `APP_KEY` and `DB_*`).
 
 ### Database connection refused
-- In DigitalOcean Database settings, add your App Platform app to **Trusted Sources**
-- Verify `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD` are correct
+- If using Managed MySQL: ensure the droplet IP (`45.55.34.241`) is in **Trusted Sources**
+- If using local MySQL: ensure the MySQL container is running (`docker ps`)
+- Test connection: `docker exec pardia-app php artisan migrate:status`
+
+### 502 Bad Gateway
+- The app container may not be running: `docker ps`
+- Check if port 8080 is in use: `ss -tlnp | grep 8080`
 
 ### Assets not loading (404 on /build/assets/)
 - The Docker build may have failed at the Node stage
-- Check the GitHub Actions build log for npm/TypeScript errors
+- Check GitHub Actions build log for npm/TypeScript errors
 
-### HTTPS redirect loop
-- The `trustProxies(at: '*')` middleware is set in `bootstrap/app.php`
-- Ensure `APP_URL` starts with `https://`
+### HTTPS not working
+- Ensure Caddy is running: `systemctl status caddy`
+- Ensure your DNS A record points to `45.55.34.241`
+- Ensure Caddyfile has the correct domain
+- Caddy needs ports 80 and 443 free — stop anything else using those ports
 
-### GitHub Action fails
-- Verify all 3 secrets are set: `DIGITALOCEAN_ACCESS_TOKEN`, `DOCR_REGISTRY`, `DIGITALOCEAN_APP_ID`
-- Check the Actions tab for specific error messages
+### GitHub Action fails at SSH step
+- Verify `SSH_PRIVATE_KEY` secret contains the full private key (including `-----BEGIN` and `-----END` lines)
+- Verify `DROPLET_IP` is `45.55.34.241`
+- Test SSH locally: `ssh pardia` should connect without password prompt
 
 ---
 
-## Cost Estimate (DigitalOcean)
+## Cost Estimate
 
-| Service               | Plan         | Monthly Cost |
-|-----------------------|-------------|-------------|
-| App Platform (1 instance) | Basic        | $5           |
-| Managed MySQL         | Basic (1 GB) | $15          |
-| Container Registry    | Starter      | Free         |
-| **Total**             |              | **~$20/mo**  |
+| Service                      | Monthly Cost |
+|-----------------------------|-------------|
+| Droplet (1 GB, already exists) | $6           |
+| Managed MySQL (optional)     | $15          |
+| Container Registry (Starter) | Free         |
+| Domain (if purchasing)       | ~$12/year    |
+| **Total (with managed DB)**  | **~$21/mo**  |
+| **Total (MySQL on droplet)** | **~$6/mo**   |
 
-Scale up as needed — App Platform supports horizontal scaling and larger instance sizes.
+If running MySQL on the droplet, consider upgrading to 2 GB RAM ($12/mo) for better performance.

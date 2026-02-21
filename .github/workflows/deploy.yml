@@ -1,4 +1,4 @@
-name: Build & Deploy to DigitalOcean
+name: Build & Deploy to DigitalOcean Droplet
 
 on:
   push:
@@ -38,16 +38,40 @@ jobs:
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
   deploy:
-    name: Deploy to App Platform
+    name: Deploy to Droplet via SSH
     runs-on: ubuntu-latest
     needs: build-and-push
 
     steps:
-      - name: Install doctl
-        uses: digitalocean/action-doctl@v2
-        with:
-          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Trigger App Platform deployment
-        run: |
-          doctl apps create-deployment ${{ secrets.DIGITALOCEAN_APP_ID }} --wait
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            # Log in to container registry
+            docker login registry.digitalocean.com -u ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }} -p ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+            # Pull the latest image
+            docker pull registry.digitalocean.com/${{ secrets.DOCR_REGISTRY }}/pardia-web:latest
+
+            # Stop and remove old container (if running)
+            docker stop pardia-app 2>/dev/null || true
+            docker rm pardia-app 2>/dev/null || true
+
+            # Run the new container
+            # Port 8080 exposed for Caddy reverse proxy (handles SSL on 80/443)
+            docker run -d \
+              --name pardia-app \
+              --restart unless-stopped \
+              -p 8080:8080 \
+              --env-file /root/pardia/.env \
+              -v pardia_storage:/var/www/html/storage \
+              registry.digitalocean.com/${{ secrets.DOCR_REGISTRY }}/pardia-web:latest
+
+            # Clean up old images
+            docker image prune -f
