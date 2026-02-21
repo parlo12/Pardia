@@ -3,9 +3,16 @@ import { Head, Link, router } from '@inertiajs/react';
 import { motion } from 'framer-motion';
 import { PageProps, Product } from '@/types';
 
+interface CompatibleDevice {
+    nickname: string;
+    model_identifier: string;
+    needs_product: boolean;
+}
+
 interface Props extends PageProps {
     product: Product;
     relatedProducts: Product[];
+    compatibleDevices: CompatibleDevice[];
 }
 
 function FeatureIcon({ index }: { index: number }) {
@@ -69,7 +76,7 @@ function getCardGradient(type: string) {
     return 'from-emerald-400 via-green-500 to-teal-600';
 }
 
-export default function ProductShow({ product, relatedProducts }: Props) {
+export default function ProductShow({ product, relatedProducts, compatibleDevices }: Props) {
     const formatPrice = (price: string) => {
         return `$${parseFloat(price).toFixed(2)}`;
     };
@@ -103,6 +110,32 @@ export default function ProductShow({ product, relatedProducts }: Props) {
                             {product.type}
                         </span>
                     </motion.div>
+
+                    {/* Device Compatibility Badge */}
+                    {compatibleDevices && compatibleDevices.length > 0 && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.6, delay: 0.15 }}
+                            className="mt-4"
+                        >
+                            {compatibleDevices.some(d => d.needs_product) ? (
+                                <span className="inline-flex items-center gap-2 rounded-full bg-red-50 border border-red-200 px-4 py-1.5 text-xs font-medium text-red-700">
+                                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                                    </svg>
+                                    Recommended for your {compatibleDevices.find(d => d.needs_product)?.nickname}
+                                </span>
+                            ) : (
+                                <span className="inline-flex items-center gap-2 rounded-full bg-green-50 border border-green-200 px-4 py-1.5 text-xs font-medium text-green-700">
+                                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    Compatible with your {compatibleDevices[0].nickname}
+                                </span>
+                            )}
+                        </motion.div>
+                    )}
 
                     {/* Product Name */}
                     <motion.h1

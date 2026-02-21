@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BatterySnapshot;
 use App\Models\Product;
 use App\Models\Category;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 
 class ProductController extends Controller
@@ -54,9 +56,47 @@ class ProductController extends Controller
             ->take(4)
             ->get();
 
+        // Check if the product is compatible with any of the user's linked devices
+        $compatibleDevices = [];
+        if (Auth::check()) {
+            $user = Auth::user();
+            $devices = $user->devices()->get();
+
+            foreach ($devices as $device) {
+                $isCompatible = empty($product->compatible_models)
+                    || in_array($device->model_identifier, $product->compatible_models ?? []);
+
+                if ($isCompatible && !empty($product->recommendation_trigger)) {
+                    $latestSnapshot = BatterySnapshot::where('device_id', $device->device_id)
+                        ->latest('reported_at')
+                        ->first();
+
+                    $needsProduct = false;
+                    if ($latestSnapshot) {
+                        $needsProduct = match ($product->recommendation_trigger) {
+                            'battery_critical' => ($latestSnapshot->health_percent ?? 100) < 50,
+                            'battery_worn' => ($latestSnapshot->health_percent ?? 100) < 80,
+                            'high_cycles' => ($latestSnapshot->cycle_count ?? 0) > 800,
+                            'storage_low' => ($device->disk_total_bytes ?? PHP_INT_MAX) < 300 * 1024 * 1024 * 1024,
+                            default => false,
+                        };
+                    }
+
+                    if ($isCompatible) {
+                        $compatibleDevices[] = [
+                            'nickname' => $device->pivot->nickname ?? $device->model_identifier,
+                            'model_identifier' => $device->model_identifier,
+                            'needs_product' => $needsProduct,
+                        ];
+                    }
+                }
+            }
+        }
+
         return Inertia::render('Products/Show', [
             'product' => $product,
             'relatedProducts' => $relatedProducts,
+            'compatibleDevices' => $compatibleDevices,
         ]);
     }
 

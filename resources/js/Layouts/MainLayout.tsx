@@ -143,6 +143,15 @@ export default function MainLayout({ children }: PropsWithChildren) {
                                                     My Devices
                                                 </Link>
                                                 <Link
+                                                    href={route('orders.index')}
+                                                    className="block px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50"
+                                                    onClick={() =>
+                                                        setUserDropdownOpen(false)
+                                                    }
+                                                >
+                                                    My Orders
+                                                </Link>
+                                                <Link
                                                     href={route('profile.edit')}
                                                     className="block px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50"
                                                     onClick={() =>
@@ -288,6 +297,13 @@ export default function MainLayout({ children }: PropsWithChildren) {
                                     onClick={() => setMobileMenuOpen(false)}
                                 >
                                     My Devices
+                                </Link>
+                                <Link
+                                    href={route('orders.index')}
+                                    className="block rounded-lg px-3 py-2.5 text-base font-medium text-gray-900 transition-colors hover:bg-gray-50"
+                                    onClick={() => setMobileMenuOpen(false)}
+                                >
+                                    My Orders
                                 </Link>
                                 <Link
                                     href={route('profile.edit')}

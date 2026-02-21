@@ -6,6 +6,7 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\DeviceLinkController;
+use App\Http\Controllers\OrderController;
 use App\Http\Controllers\TelemetryDashboardController;
 use Illuminate\Support\Facades\Route;
 
@@ -37,6 +38,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/devices', [DeviceLinkController::class, 'store'])->name('devices.store');
     Route::patch('/devices/{deviceId}', [DeviceLinkController::class, 'update'])->name('devices.update');
     Route::delete('/devices/{deviceId}', [DeviceLinkController::class, 'destroy'])->name('devices.destroy');
+
+    Route::get('/orders', [OrderController::class, 'index'])->name('orders.index');
+    Route::get('/orders/{orderNumber}', [OrderController::class, 'show'])->name('orders.show');
 
     Route::get('/telemetry', [TelemetryDashboardController::class, 'index'])->name('telemetry.index');
     Route::get('/telemetry/{deviceId}', [TelemetryDashboardController::class, 'show'])->name('telemetry.show');

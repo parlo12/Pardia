@@ -217,10 +217,10 @@ export default function Success({ order }: Props) {
                         </svg>
                     </Link>
                     <Link
-                        href={route('dashboard')}
+                        href={route('orders.index')}
                         className="inline-flex items-center rounded-full border border-gray-300 bg-white px-8 py-3 text-sm font-medium text-gray-900 transition-all hover:bg-gray-50 active:scale-[0.98]"
                     >
-                        View Dashboard
+                        View Orders
                     </Link>
                 </motion.div>
             </div>
