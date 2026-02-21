@@ -1,3 +1,4 @@
+import React from 'react';
 import { Head, Link } from '@inertiajs/react';
 import { motion } from 'framer-motion';
 import MainLayout from '@/Layouts/MainLayout';
@@ -273,7 +274,6 @@ function EmptyState() {
 
 export default function Index({ devices, stats }: TelemetryIndexProps) {
     const hasDevices = devices.data.length > 0;
-    const { meta, links } = devices;
 
     return (
         <MainLayout>
@@ -389,7 +389,7 @@ export default function Index({ devices, stats }: TelemetryIndexProps) {
                             </h2>
                             {hasDevices && (
                                 <span className="text-sm text-gray-400">
-                                    {meta.total} device{meta.total !== 1 ? 's' : ''} total
+                                    {devices.total} device{devices.total !== 1 ? 's' : ''} total
                                 </span>
                             )}
                         </div>
@@ -520,15 +520,15 @@ export default function Index({ devices, stats }: TelemetryIndexProps) {
                                 </div>
 
                                 {/* Pagination */}
-                                {meta.last_page > 1 && (
+                                {devices.last_page > 1 && (
                                     <div className="mt-6 flex items-center justify-between">
                                         <p className="text-sm text-gray-500">
-                                            Page {meta.current_page} of {meta.last_page}
+                                            Page {devices.current_page} of {devices.last_page}
                                         </p>
                                         <div className="flex items-center gap-3">
-                                            {links.prev ? (
+                                            {devices.prev_page_url ? (
                                                 <Link
-                                                    href={links.prev}
+                                                    href={devices.prev_page_url}
                                                     className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all hover:border-gray-300 hover:bg-gray-50"
                                                 >
                                                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -544,9 +544,9 @@ export default function Index({ devices, stats }: TelemetryIndexProps) {
                                                     Previous
                                                 </span>
                                             )}
-                                            {links.next ? (
+                                            {devices.next_page_url ? (
                                                 <Link
-                                                    href={links.next}
+                                                    href={devices.next_page_url}
                                                     className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all hover:border-gray-300 hover:bg-gray-50"
                                                 >
                                                     Next

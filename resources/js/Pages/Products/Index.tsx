@@ -221,7 +221,7 @@ export default function ProductsIndex({ products, categories, filters }: Props) 
                     <div className="mx-auto max-w-7xl px-6 lg:px-8 pt-8">
                         <div className="flex items-center justify-between">
                             <p className="text-sm text-gray-500">
-                                {products.meta.total} {products.meta.total === 1 ? 'product' : 'products'} found
+                                {products.total} {products.total === 1 ? 'product' : 'products'} found
                             </p>
                             {(filters.search || filters.category || filters.type) && (
                                 <button
@@ -352,13 +352,13 @@ export default function ProductsIndex({ products, categories, filters }: Props) 
                 </section>
 
                 {/* Pagination */}
-                {products.meta.last_page > 1 && (
+                {products.last_page > 1 && (
                     <section className="mx-auto max-w-7xl px-6 pb-16 lg:px-8">
                         <div className="flex items-center justify-center gap-2">
                             {/* Previous Button */}
-                            {products.links.prev ? (
+                            {products.prev_page_url ? (
                                 <Link
-                                    href={products.links.prev}
+                                    href={products.prev_page_url}
                                     preserveState
                                     className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
                                 >
@@ -378,11 +378,11 @@ export default function ProductsIndex({ products, categories, filters }: Props) 
 
                             {/* Page Numbers */}
                             <div className="hidden sm:flex items-center gap-1">
-                                {Array.from({ length: products.meta.last_page }, (_, i) => i + 1).map(
+                                {Array.from({ length: products.last_page }, (_, i) => i + 1).map(
                                     (page) => {
                                         // Show limited page numbers for large page counts
-                                        const current = products.meta.current_page;
-                                        const last = products.meta.last_page;
+                                        const current = products.current_page;
+                                        const last = products.last_page;
                                         const showPage =
                                             page === 1 ||
                                             page === last ||
@@ -430,14 +430,14 @@ export default function ProductsIndex({ products, categories, filters }: Props) 
                             {/* Mobile Page Indicator */}
                             <div className="sm:hidden flex items-center px-4">
                                 <span className="text-sm text-gray-500">
-                                    Page {products.meta.current_page} of {products.meta.last_page}
+                                    Page {products.current_page} of {products.last_page}
                                 </span>
                             </div>
 
                             {/* Next Button */}
-                            {products.links.next ? (
+                            {products.next_page_url ? (
                                 <Link
-                                    href={products.links.next}
+                                    href={products.next_page_url}
                                     preserveState
                                     className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
                                 >

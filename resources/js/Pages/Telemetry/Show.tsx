@@ -1,5 +1,5 @@
+import React, { useState, useMemo } from 'react';
 import { Head, Link } from '@inertiajs/react';
-import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import MainLayout from '@/Layouts/MainLayout';
 
