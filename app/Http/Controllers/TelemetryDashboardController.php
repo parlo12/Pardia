@@ -13,6 +13,7 @@ class TelemetryDashboardController extends Controller
     public function index()
     {
         $devices = Device::query()
+            ->with('registration')
             ->select('devices.*')
             ->addSelect([
                 'latest_battery_health' => BatterySnapshot::select('health_percent')
@@ -68,7 +69,7 @@ class TelemetryDashboardController extends Controller
 
     public function show(string $deviceId)
     {
-        $device = Device::where('device_id', $deviceId)->firstOrFail();
+        $device = Device::with('registration')->where('device_id', $deviceId)->firstOrFail();
 
         $batterySnapshots = BatterySnapshot::where('device_id', $deviceId)
             ->orderBy('reported_at')

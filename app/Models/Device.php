@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Device extends Model
 {
@@ -33,6 +34,11 @@ class Device extends Model
     public function weeklyReports(): HasMany
     {
         return $this->hasMany(WeeklyReport::class, 'device_id', 'device_id');
+    }
+
+    public function registration(): HasOne
+    {
+        return $this->hasOne(PbmRegistration::class, 'device_id', 'device_id');
     }
 
     public function users(): BelongsToMany

@@ -7,6 +7,14 @@ import MainLayout from '@/Layouts/MainLayout';
 // Types
 // ---------------------------------------------------------------------------
 
+interface Registration {
+    name: string;
+    email: string;
+    phone: string | null;
+    app_version: string;
+    registered_at: string;
+}
+
 interface Device {
     device_id: string;
     model_identifier: string | null;
@@ -22,6 +30,7 @@ interface Device {
     first_seen_at: string | null;
     created_at: string;
     updated_at: string;
+    registration: Registration | null;
 }
 
 interface BatterySnapshotData {
@@ -784,6 +793,40 @@ export default function Show({
                             </div>
                         </div>
                     </motion.section>
+
+                    {/* -------------------------------------------------------- */}
+                    {/* Registered User                                          */}
+                    {/* -------------------------------------------------------- */}
+                    {device.registration && (
+                        <motion.section
+                            className="mt-8"
+                            initial="hidden"
+                            animate="visible"
+                            variants={sectionFade}
+                            transition={{ duration: 0.5, delay: 0.15 }}
+                        >
+                            <div className="rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 p-6 sm:p-8 ring-1 ring-blue-100">
+                                <div className="flex items-center gap-3">
+                                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0071e3]/10">
+                                        <svg className="h-5 w-5 text-[#0071e3]" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                                        </svg>
+                                    </div>
+                                    <h2 className="text-lg font-semibold text-gray-900">Registered User</h2>
+                                </div>
+                                <div className="mt-4 grid grid-cols-1 gap-x-12 sm:grid-cols-2">
+                                    <div>
+                                        <InfoRow label="Name" value={device.registration.name} />
+                                        <InfoRow label="Email" value={device.registration.email} />
+                                    </div>
+                                    <div>
+                                        <InfoRow label="Phone" value={device.registration.phone || '--'} />
+                                        <InfoRow label="Registered" value={formatDate(device.registration.registered_at)} />
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.section>
+                    )}
 
                     {/* -------------------------------------------------------- */}
                     {/* Current Battery Status                                   */}

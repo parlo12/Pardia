@@ -8,6 +8,12 @@ import { PaginatedData } from '@/types';
 // Types
 // ---------------------------------------------------------------------------
 
+interface Registration {
+    name: string;
+    email: string;
+    phone: string | null;
+}
+
 interface DeviceRow {
     device_id: string;
     model_identifier: string | null;
@@ -27,6 +33,7 @@ interface DeviceRow {
     latest_report_at: string | null;
     snapshot_count: number;
     weekly_count: number;
+    registration: Registration | null;
 }
 
 interface Stats {
@@ -408,6 +415,9 @@ export default function Index({ devices, stats }: TelemetryIndexProps) {
                                                         Device
                                                     </th>
                                                     <th className="whitespace-nowrap px-6 py-3.5 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                                        Registered User
+                                                    </th>
+                                                    <th className="whitespace-nowrap px-6 py-3.5 text-xs font-semibold uppercase tracking-wider text-gray-500">
                                                         OS
                                                     </th>
                                                     <th className="whitespace-nowrap px-6 py-3.5 text-xs font-semibold uppercase tracking-wider text-gray-500">
@@ -455,6 +465,25 @@ export default function Index({ devices, stats }: TelemetryIndexProps) {
                                                                     {truncateId(device.device_id)}
                                                                 </div>
                                                             </Link>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            {device.registration ? (
+                                                                <div>
+                                                                    <div className="font-medium text-gray-900">
+                                                                        {device.registration.name}
+                                                                    </div>
+                                                                    <div className="mt-0.5 text-xs text-gray-500">
+                                                                        {device.registration.email}
+                                                                    </div>
+                                                                    {device.registration.phone && (
+                                                                        <div className="mt-0.5 text-xs text-gray-400">
+                                                                            {device.registration.phone}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-xs text-gray-400">--</span>
+                                                            )}
                                                         </td>
                                                         <td className="whitespace-nowrap px-6 py-4 text-gray-700">
                                                             {device.os_version || '--'}
