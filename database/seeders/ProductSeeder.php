@@ -121,6 +121,24 @@ class ProductSeeder extends Seeder
         ]);
 
         Product::create([
+            'category_id' => $software->id,
+            'name' => 'Pardia Battery Management',
+            'slug' => 'pardia-battery-management',
+            'description' => 'Keep your Mac battery healthy for years to come. Pardia Battery Management (PBM) helps Apple Silicon Mac users reduce unnecessary charge cycles and extend battery lifespan. The app runs quietly in the background, monitoring your battery health, cycle count, and charging patterns. It provides smart insights on when to plug in or unplug, helping you maintain optimal charging habits that keep your cycle count low. Designed exclusively for Apple Silicon Macs (M1, M2, M3, M4), PBM is lightweight, free, and built to protect your most important component.',
+            'short_description' => 'Extend your Mac battery life by keeping charge cycles low.',
+            'price' => 0,
+            'is_free' => true,
+            'type' => 'software',
+            'download_url' => '/downloads/PBM-1.0.0.dmg',
+            'version' => '1.0.0',
+            'features' => ['Cycle Count Reduction', 'Smart Charging Insights', 'Battery Health Monitoring', 'Apple Silicon Optimized', 'Lightweight & Free', 'Weekly Health Reports'],
+            'system_requirements' => ['OS' => 'macOS 13 Ventura or later', 'Chip' => 'Apple Silicon (M1, M2, M3, M4)', 'Storage' => '50 MB'],
+            'stock' => 999,
+            'is_active' => true,
+            'is_featured' => true,
+        ]);
+
+        Product::create([
             'category_id' => $utilities->id,
             'name' => 'Pardia Terminal',
             'slug' => 'pardia-terminal',
