@@ -42,8 +42,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/orders', [OrderController::class, 'index'])->name('orders.index');
     Route::get('/orders/{orderNumber}', [OrderController::class, 'show'])->name('orders.show');
 
-    Route::get('/telemetry', [TelemetryDashboardController::class, 'index'])->name('telemetry.index');
-    Route::get('/telemetry/{deviceId}', [TelemetryDashboardController::class, 'show'])->name('telemetry.show');
+    Route::middleware(\App\Http\Middleware\AdminMiddleware::class)->group(function () {
+        Route::get('/telemetry', [TelemetryDashboardController::class, 'index'])->name('telemetry.index');
+        Route::get('/telemetry/{deviceId}', [TelemetryDashboardController::class, 'show'])->name('telemetry.show');
+    });
 });
 
 require __DIR__.'/auth.php';

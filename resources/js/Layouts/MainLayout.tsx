@@ -160,6 +160,20 @@ export default function MainLayout({ children }: PropsWithChildren) {
                                                 >
                                                     Profile
                                                 </Link>
+                                                {auth.user.is_admin && (
+                                                    <>
+                                                        <div className="my-1 border-t border-gray-100" />
+                                                        <Link
+                                                            href={route('telemetry.index')}
+                                                            className="block px-4 py-2 text-sm font-medium text-[#0071e3] transition-colors hover:bg-blue-50"
+                                                            onClick={() =>
+                                                                setUserDropdownOpen(false)
+                                                            }
+                                                        >
+                                                            Telemetry
+                                                        </Link>
+                                                    </>
+                                                )}
                                                 <div className="my-1 border-t border-gray-100" />
                                                 <Link
                                                     href={route('logout')}
@@ -312,6 +326,15 @@ export default function MainLayout({ children }: PropsWithChildren) {
                                 >
                                     Profile
                                 </Link>
+                                {auth.user.is_admin && (
+                                    <Link
+                                        href={route('telemetry.index')}
+                                        className="block rounded-lg px-3 py-2.5 text-base font-medium text-[#0071e3] transition-colors hover:bg-blue-50"
+                                        onClick={() => setMobileMenuOpen(false)}
+                                    >
+                                        Telemetry
+                                    </Link>
+                                )}
                                 <Link
                                     href={route('logout')}
                                     method="post"
