@@ -1,22 +1,5 @@
 # ============================================================
-# Stage 1: Build frontend assets (Node 20)
-# ============================================================
-FROM node:20-alpine AS frontend
-
-WORKDIR /app
-
-COPY package.json package-lock.json ./
-RUN npm ci
-
-COPY resources/ resources/
-COPY tsconfig.json vite.config.js tailwind.config.js postcss.config.js ./
-# Ziggy route types needed for TypeScript compilation
-COPY vendor/tightenco/ziggy vendor/tightenco/ziggy
-
-RUN npm run build
-
-# ============================================================
-# Stage 2: Install PHP dependencies (Composer)
+# Stage 1: Install PHP dependencies (Composer)
 # ============================================================
 FROM composer:2 AS vendor
 
@@ -29,6 +12,24 @@ RUN composer install \
     --no-scripts \
     --prefer-dist \
     --optimize-autoloader
+
+# ============================================================
+# Stage 2: Build frontend assets (Node 20)
+# Runs after Composer so we can grab Ziggy route types
+# ============================================================
+FROM node:20-alpine AS frontend
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY resources/ resources/
+COPY tsconfig.json vite.config.js tailwind.config.js postcss.config.js ./
+# Ziggy route types needed for TypeScript compilation — pulled from Composer stage
+COPY --from=vendor /app/vendor/tightenco/ziggy vendor/tightenco/ziggy
+
+RUN npm run build
 
 # ============================================================
 # Stage 3: Production runtime (PHP-FPM + Nginx)
@@ -47,7 +48,8 @@ RUN apk add --no-cache \
     icu-dev \
     oniguruma-dev \
     linux-headers \
-    sqlite-dev
+    sqlite-dev \
+    postgresql-dev
 
 # Install PHP extensions
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
@@ -93,17 +95,17 @@ COPY docker/supervisord.conf /etc/supervisord.conf
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy entrypoint script first (before app code COPY overwrites context)
+# Copy entrypoint script
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Copy application code
 COPY . .
 
-# Copy built assets from Stage 1
+# Copy built assets from frontend stage
 COPY --from=frontend /app/public/build public/build
 
-# Copy vendor from Stage 2
+# Copy vendor from composer stage
 COPY --from=vendor /app/vendor vendor
 
 # Remove dev/build files not needed in production
@@ -120,8 +122,9 @@ RUN mkdir -p \
     storage/framework/views \
     storage/logs \
     bootstrap/cache \
-    && chown -R www-data:www-data storage bootstrap/cache \
-    && chmod -R 775 storage bootstrap/cache
+    database \
+    && chown -R www-data:www-data storage bootstrap/cache database \
+    && chmod -R 775 storage bootstrap/cache database
 
 EXPOSE 8080
 
