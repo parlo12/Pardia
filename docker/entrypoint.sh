@@ -16,8 +16,9 @@ php artisan view:cache
 # Run database migrations
 php artisan migrate --force
 
-# Ensure correct permissions
-chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+# Ensure correct permissions (includes database dir for SQLite)
+chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache /var/www/html/database
+chmod -R 775 /var/www/html/database
 
 # Create supervisor log directory
 mkdir -p /var/log/supervisor
