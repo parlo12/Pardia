@@ -453,37 +453,47 @@ function ProductCard({
                 <div
                     className={`relative aspect-[4/3] w-full bg-gradient-to-br ${gradient} overflow-hidden`}
                 >
-                    <div className="absolute inset-0 flex items-center justify-center">
-                        {product.type === 'software' ? (
-                            <svg
-                                className="h-16 w-16 text-white/30"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                strokeWidth={1}
-                                stroke="currentColor"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z"
-                                />
-                            </svg>
-                        ) : (
-                            <svg
-                                className="h-16 w-16 text-white/30"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                strokeWidth={1}
-                                stroke="currentColor"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25z"
-                                />
-                            </svg>
-                        )}
-                    </div>
+                    {product.thumbnail ? (
+                        <div className="absolute inset-0 flex items-center justify-center p-4">
+                            <img
+                                src={product.thumbnail}
+                                alt={product.name}
+                                className="max-h-full max-w-full rounded-lg object-contain drop-shadow-lg"
+                            />
+                        </div>
+                    ) : (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            {product.type === 'software' ? (
+                                <svg
+                                    className="h-16 w-16 text-white/30"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    strokeWidth={1}
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z"
+                                    />
+                                </svg>
+                            ) : (
+                                <svg
+                                    className="h-16 w-16 text-white/30"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    strokeWidth={1}
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25z"
+                                    />
+                                </svg>
+                            )}
+                        </div>
+                    )}
 
                     {/* Category Badge */}
                     {product.category && (

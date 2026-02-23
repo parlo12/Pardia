@@ -211,6 +211,24 @@ export default function ProductShow({ product, relatedProducts, compatibleDevice
                             </svg>
                         </a>
                     </motion.div>
+
+                    {/* Product Screenshot */}
+                    {product.thumbnail && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 40 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.8, delay: 0.7 }}
+                            className="mt-16"
+                        >
+                            <div className="mx-auto max-w-sm overflow-hidden rounded-2xl shadow-2xl shadow-gray-900/20 ring-1 ring-gray-900/10">
+                                <img
+                                    src={product.thumbnail}
+                                    alt={product.name}
+                                    className="w-full h-auto"
+                                />
+                            </div>
+                        </motion.div>
+                    )}
                 </div>
 
                 {/* Scroll Indicator */}
@@ -522,17 +540,27 @@ export default function ProductShow({ product, relatedProducts, compatibleDevice
                                         <div className="overflow-hidden rounded-2xl bg-white transition-all duration-500 group-hover:shadow-lg group-hover:shadow-gray-200/50">
                                             {/* Gradient Thumbnail */}
                                             <div className={`relative aspect-[4/3] bg-gradient-to-br ${getCardGradient(related.type)} overflow-hidden`}>
-                                                <div className="absolute inset-0 flex items-center justify-center">
-                                                    {related.type === 'software' ? (
-                                                        <svg className="w-12 h-12 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                                        </svg>
-                                                    ) : (
-                                                        <svg className="w-12 h-12 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
-                                                        </svg>
-                                                    )}
-                                                </div>
+                                                {related.thumbnail ? (
+                                                    <div className="absolute inset-0 flex items-center justify-center p-4">
+                                                        <img
+                                                            src={related.thumbnail}
+                                                            alt={related.name}
+                                                            className="max-h-full max-w-full rounded-lg object-contain drop-shadow-lg"
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <div className="absolute inset-0 flex items-center justify-center">
+                                                        {related.type === 'software' ? (
+                                                            <svg className="w-12 h-12 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                                            </svg>
+                                                        ) : (
+                                                            <svg className="w-12 h-12 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
+                                                            </svg>
+                                                        )}
+                                                    </div>
+                                                )}
 
                                                 {/* Type Badge */}
                                                 <div className="absolute top-3 left-3">

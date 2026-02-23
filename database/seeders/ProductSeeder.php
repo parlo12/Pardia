@@ -131,6 +131,8 @@ class ProductSeeder extends Seeder
             'type' => 'software',
             'download_url' => '/downloads/PBM-1.0.0.dmg',
             'version' => '1.0.0',
+            'thumbnail' => '/images/products/pbm-screenshot.png',
+            'images' => ['/images/products/pbm-screenshot.png'],
             'features' => ['Cycle Count Reduction', 'Smart Charging Insights', 'Battery Health Monitoring', 'Apple Silicon Optimized', 'Lightweight & Free', 'Weekly Health Reports'],
             'system_requirements' => ['OS' => 'macOS 13 Ventura or later', 'Chip' => 'Apple Silicon (M1, M2, M3, M4)', 'Storage' => '50 MB'],
             'stock' => 999,
