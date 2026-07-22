@@ -8,9 +8,18 @@ use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\DeviceLinkController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\TelemetryDashboardController;
+use App\Http\Controllers\TStreamAdminController;
+use App\Http\Controllers\TStreamPageController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
+
+// T-Stream (iPhone → Tesla screen streaming) — public pages
+Route::get('/t-stream', [TStreamPageController::class, 'landing'])->name('tstream.landing');
+Route::post('/t-stream/checkout', [TStreamPageController::class, 'checkout'])->name('tstream.checkout');
+Route::get('/t-stream/success', [TStreamPageController::class, 'success'])->name('tstream.success');
+Route::get('/tstream/terms', [TStreamPageController::class, 'terms'])->name('tstream.terms');
+Route::get('/tstream/privacy', [TStreamPageController::class, 'privacy'])->name('tstream.privacy');
 
 Route::get('/products', [ProductController::class, 'index'])->name('products.index');
 Route::get('/products/{slug}', [ProductController::class, 'show'])->name('products.show');
@@ -45,6 +54,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware(\App\Http\Middleware\AdminMiddleware::class)->group(function () {
         Route::get('/telemetry', [TelemetryDashboardController::class, 'index'])->name('telemetry.index');
         Route::get('/telemetry/{deviceId}', [TelemetryDashboardController::class, 'show'])->name('telemetry.show');
+        Route::get('/tstream-admin', [TStreamAdminController::class, 'index'])->name('tstream.admin');
     });
 });
 
