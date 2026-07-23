@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>T-Stream</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; background: #000; color: #fff;
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow: hidden; }
+  #landing { height: 100%; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 28px; text-align: center; padding: 24px; }
+  .logo { font-size: 54px; font-weight: 800; letter-spacing: 6px; }
+  .logo span { color: #e82127; }
+  .tagline { font-size: 22px; opacity: .75; max-width: 640px; line-height: 1.5; }
+  #acceptBtn { margin-top: 12px; background: #e82127; color: #fff; border: 0;
+    font-size: 30px; font-weight: 700; letter-spacing: 3px;
+    padding: 22px 90px; border-radius: 14px; cursor: pointer; }
+  .hint { font-size: 16px; opacity: .45; }
+  #player { display: none; height: 100%; position: relative; overflow: hidden;
+    align-items: center; justify-content: center; }
+  #screen { max-width: 100vw; max-height: 100vh; }
+  #liveBadge { position: absolute; top: 14px; left: 14px; display: flex; align-items: center;
+    gap: 8px; background: rgba(0,0,0,.55); padding: 7px 14px; border-radius: 999px;
+    font-size: 14px; letter-spacing: 2px; z-index: 20; }
+  #liveBadge .dot { width: 10px; height: 10px; border-radius: 50%; background: #e82127;
+    animation: pulse 1.4s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+  #waiting { display: none; position: absolute; inset: 0; background: rgba(0,0,0,.85);
+    flex-direction: column; align-items: center; justify-content: center; gap: 16px; z-index: 40; }
+  #waiting .spinner { width: 46px; height: 46px; border: 4px solid rgba(255,255,255,.2);
+    border-top-color: #e82127; border-radius: 50%; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #adOverlay { display: none; position: absolute; inset: 0; background: rgba(0,0,0,.94);
+    flex-direction: column; align-items: center; justify-content: center;
+    gap: 30px; padding: 40px; text-align: center; z-index: 50; }
+  #adCountdown { font-size: 18px; opacity: .55; }
+</style>
+</head>
+<body>
+  <div id="landing">
+    <div class="logo">T-<span>STREAM</span></div>
+    <div class="tagline">Your iPhone is streaming to code <strong>{{CODE}}</strong>.
+      Keep your eyes on the road &mdash; use while parked or for passengers.</div>
+    <button id="acceptBtn">ACCEPT</button>
+    <div class="hint">Audio plays through your car speakers via Bluetooth</div>
+  </div>
+
+  <div id="player">
+    <canvas id="screen"></canvas>
+    <div id="liveBadge"><div class="dot"></div>LIVE</div>
+    <div id="waiting"><div class="spinner"></div><div>Waiting for your iPhone&hellip;</div></div>
+    <div id="adOverlay">
+      <div style="max-width:900px">
+        <div style="font-size:44px;font-weight:700;letter-spacing:2px">T-STREAM</div>
+        <div style="font-size:28px;margin-top:14px">Go <span style="color:#e82127;font-weight:700">Premium</span> for $6.99/mo &mdash; no ad breaks, ever.</div>
+        <div style="font-size:20px;margin-top:12px;opacity:.6">Upgrade in the T-Stream app on your iPhone</div>
+      </div>
+      <div id="adCountdown"></div>
+    </div>
+  </div>
+
+<script src="/static/jsmpeg.min.js"></script>
+<script>
+  var cfg = { premium: true, adIntervalSec: 120, adDurationSec: 15, live: false };
+  var player = null;
+
+  fetch('/config/{{CODE}}').then(function (r) { return r.json(); })
+    .then(function (c) { cfg = c; }).catch(function () {});
+
+  document.getElementById('acceptBtn').addEventListener('click', function () {
+    document.getElementById('landing').style.display = 'none';
+    document.getElementById('player').style.display = 'flex';
+    start();
+    if (!cfg.premium) setInterval(showAd, cfg.adIntervalSec * 1000);
+  });
+
+  function start() {
+    var proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+    player = new JSMpeg.Player(proto + location.host + '/ws?code={{CODE}}', {
+      canvas: document.getElementById('screen'),
+      audio: false,
+      pauseWhenHidden: false,
+      videoBufferSize: 1024 * 1024,
+      disableGl: /(^|[?&])gl=0/.test(location.search),
+      onSourceEstablished: function () { showWaiting(false); },
+    });
+    showWaiting(true);
+  }
+
+  function showWaiting(on) {
+    document.getElementById('waiting').style.display = on ? 'flex' : 'none';
+  }
+
+  // Watchdog: if the stream stops flowing, show the waiting overlay.
+  var lastTime = 0, stalled = 0;
+  setInterval(function () {
+    if (!player) return;
+    var t = player.currentTime || 0;
+    if (t === lastTime) {
+      stalled += 1;
+      if (stalled >= 3) showWaiting(true);
+    } else {
+      stalled = 0;
+      showWaiting(false);
+    }
+    lastTime = t;
+  }, 2000);
+
+  // Test hook: skip the Accept screen with ?autoplay=1
+  if (/(^|[?&])autoplay=1/.test(location.search)) {
+    document.getElementById('acceptBtn').click();
+  }
+
+  function showAd() {
+    if (cfg.premium) return;
+    var overlay = document.getElementById('adOverlay');
+    var countdown = document.getElementById('adCountdown');
+    overlay.style.display = 'flex';
+    var remaining = cfg.adDurationSec;
+    countdown.textContent = 'Your stream resumes in ' + remaining + 's';
+    var timer = setInterval(function () {
+      remaining -= 1;
+      countdown.textContent = 'Your stream resumes in ' + remaining + 's';
+      if (remaining <= 0) { clearInterval(timer); overlay.style.display = 'none'; }
+    }, 1000);
+  }
+</script>
+</body>
+</html>
