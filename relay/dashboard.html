@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>T-Play</title>
+<link rel="stylesheet" href="/static/leaflet.css">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; background: #000; color: #fff;
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow: hidden; }
+  #app { height: 100%; display: grid; grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr auto; gap: 14px; padding: 14px; }
+  .tile { background: #111; border: 1px solid rgba(255,255,255,.09); border-radius: 18px;
+    overflow: hidden; position: relative; }
+
+  /* ---- Now Playing ---- */
+  #music { display: flex; flex-direction: column; padding: 22px; }
+  #artwork { width: 38%; max-width: 260px; aspect-ratio: 1; border-radius: 14px;
+    background: #222 center/cover no-repeat; align-self: center; margin-top: 8px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.6); }
+  #trackTitle { margin-top: 20px; font-size: 26px; font-weight: 700; text-align: center;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #trackArtist { margin-top: 6px; font-size: 18px; color: rgba(255,255,255,.55); text-align: center; }
+  #controls { display: flex; justify-content: center; align-items: center; gap: 34px; margin-top: 22px; }
+  .btn { background: rgba(255,255,255,.08); border: 0; color: #fff; border-radius: 50%;
+    width: 74px; height: 74px; font-size: 26px; cursor: pointer; }
+  .btn:active { background: rgba(255,255,255,.25); }
+  #playBtn { width: 92px; height: 92px; font-size: 34px; background: #e82127; }
+  #playlists { margin-top: 20px; display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; }
+  .pl { flex: 0 0 auto; background: rgba(255,255,255,.07); border: 0; color: #fff;
+    padding: 14px 20px; border-radius: 12px; font-size: 16px; cursor: pointer; max-width: 220px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pl:active { background: #e82127; }
+
+  /* ---- Map ---- */
+  #mapTile { min-height: 0; }
+  #map { position: absolute; inset: 0; background: #0a0a0a; }
+  #speedBadge { position: absolute; right: 16px; top: 16px; z-index: 500;
+    background: rgba(0,0,0,.75); border: 1px solid rgba(255,255,255,.15);
+    border-radius: 14px; padding: 10px 18px; text-align: center; }
+  #speedVal { font-size: 34px; font-weight: 800; }
+  #speedUnit { font-size: 12px; color: rgba(255,255,255,.5); letter-spacing: 1px; }
+
+  /* ---- Bottom bar ---- */
+  #bar { grid-column: 1 / -1; display: flex; gap: 14px; align-items: center; }
+  .barTile { flex: 1; background: #111; border: 1px solid rgba(255,255,255,.09);
+    border-radius: 14px; padding: 16px 20px; display: flex; align-items: center; gap: 12px;
+    color: #fff; text-decoration: none; font-size: 17px; cursor: pointer; }
+  .barTile:active { background: rgba(255,255,255,.1); }
+  .barTile .ico { font-size: 24px; }
+  #status { flex: 0 0 auto; font-size: 13px; color: rgba(255,255,255,.4); padding-right: 8px; }
+  #status.offline { color: #e82127; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="tile" id="music">
+    <div id="artwork"></div>
+    <div id="trackTitle">Nothing playing</div>
+    <div id="trackArtist">Open Apple Music on your phone or pick a playlist below</div>
+    <div id="controls">
+      <button class="btn" id="prevBtn">&#9198;</button>
+      <button class="btn" id="playBtn">&#9654;</button>
+      <button class="btn" id="nextBtn">&#9197;</button>
+    </div>
+    <div id="playlists"></div>
+  </div>
+
+  <div class="tile" id="mapTile">
+    <div id="map"></div>
+    <div id="speedBadge"><div id="speedVal">--</div><div id="speedUnit">MPH</div></div>
+  </div>
+
+  <div id="bar">
+    <a class="barTile" id="mirrorTile"><span class="ico">&#128241;</span> Mirror phone screen</a>
+    <div class="barTile" onclick="location.reload()"><span class="ico">&#8635;</span> Reconnect</div>
+    <div id="status">connecting&hellip;</div>
+  </div>
+</div>
+
+<script src="/static/leaflet.js"></script>
+<script>
+  var ws = null;
+  var reconnectTimer = null;
+
+  // ---- Map ----
+  var map = L.map('map', { zoomControl: false, attributionControl: true }).setView([37.77, -122.42], 15);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19,
+  }).addTo(map);
+  var carMarker = L.circleMarker([37.77, -122.42], {
+    radius: 10, color: '#fff', weight: 2, fillColor: '#e82127', fillOpacity: 1,
+  }).addTo(map);
+  var followCar = true;
+  map.on('dragstart', function () { followCar = false; });
+  map.on('dblclick', function () { followCar = true; });
+
+  // ---- Control socket ----
+  function connect() {
+    var proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+    ws = new WebSocket(proto + location.host + '/ctl?code={{CODE}}&role=car');
+    ws.onopen = function () {
+      setStatus('connected', false);
+      send({ type: 'cmd', action: 'getState' });
+      send({ type: 'cmd', action: 'getPlaylists' });
+    };
+    ws.onmessage = function (e) {
+      var msg;
+      try { msg = JSON.parse(e.data); } catch (err) { return; }
+      handle(msg);
+    };
+    ws.onclose = function () {
+      setStatus('reconnecting…', true);
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connect, 2000);
+    };
+  }
+  function send(obj) {
+    if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj));
+  }
+  function setStatus(text, bad) {
+    var el = document.getElementById('status');
+    el.textContent = text;
+    el.className = bad ? 'offline' : '';
+  }
+
+  function handle(msg) {
+    if (msg.type === 'nowPlaying') {
+      document.getElementById('trackTitle').textContent = msg.title || 'Nothing playing';
+      document.getElementById('trackArtist').textContent = msg.artist || '';
+      document.getElementById('playBtn').innerHTML = msg.state === 'playing' ? '&#10074;&#10074;' : '&#9654;';
+      var art = document.getElementById('artwork');
+      art.style.backgroundImage = msg.artworkB64 ? 'url(data:image/jpeg;base64,' + msg.artworkB64 + ')' : 'none';
+    } else if (msg.type === 'playlists') {
+      var wrap = document.getElementById('playlists');
+      wrap.innerHTML = '';
+      (msg.items || []).forEach(function (pl) {
+        var b = document.createElement('button');
+        b.className = 'pl';
+        b.textContent = pl.name;
+        b.onclick = function () { send({ type: 'cmd', action: 'playPlaylist', id: pl.id }); };
+        wrap.appendChild(b);
+      });
+    } else if (msg.type === 'location') {
+      var pos = [msg.lat, msg.lon];
+      carMarker.setLatLng(pos);
+      if (followCar) map.panTo(pos, { animate: true });
+      document.getElementById('speedVal').textContent =
+        msg.speedMph >= 0 ? Math.round(msg.speedMph) : '--';
+    } else if (msg.type === 'mirror') {
+      var tile = document.getElementById('mirrorTile');
+      if (msg.code) { tile.href = '/' + msg.code; }
+    } else if (msg.type === 'phoneOffline') {
+      setStatus('phone disconnected', true);
+    } else if (msg.type === 'phoneOnline') {
+      setStatus('connected', false);
+    }
+  }
+
+  document.getElementById('playBtn').onclick = function () { send({ type: 'cmd', action: 'toggle' }); };
+  document.getElementById('nextBtn').onclick = function () { send({ type: 'cmd', action: 'next' }); };
+  document.getElementById('prevBtn').onclick = function () { send({ type: 'cmd', action: 'prev' }); };
+  document.getElementById('mirrorTile').onclick = function (e) {
+    if (!this.href || this.getAttribute('href') === null) {
+      e.preventDefault();
+      alert('Start a broadcast in the T-Stream app first, then this tile mirrors your screen.');
+    }
+  };
+
+  connect();
+</script>
+</body>
+</html>

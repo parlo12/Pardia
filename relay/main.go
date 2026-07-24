@@ -27,11 +27,14 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-//go:embed static/jsmpeg.min.js
+//go:embed static
 var staticFS embed.FS
 
 //go:embed viewer.html
 var viewerHTML string
+
+//go:embed dashboard.html
+var dashboardHTML string
 
 const (
 	listenAddr     = "127.0.0.1:8090"
@@ -62,6 +65,11 @@ type session struct {
 	viewers    map[*viewer]struct{}
 	ingestLive bool
 	lastIngest time.Time
+
+	// Dashboard control channel: one phone, many car screens. JSON text
+	// messages are forwarded verbatim phone->cars and car->phone.
+	ctlPhone *websocket.Conn
+	ctlCars  map[*websocket.Conn]struct{}
 }
 
 type viewer struct {
@@ -114,6 +122,7 @@ func (r *registry) create(premium bool) *session {
 			premium:   premium,
 			createdAt: time.Now(),
 			viewers:   map[*viewer]struct{}{},
+			ctlCars:   map[*websocket.Conn]struct{}{},
 		}
 		r.sessions[code] = s
 		return s
@@ -358,6 +367,89 @@ func handleViewerWS(w http.ResponseWriter, r *http.Request) {
 	conn.Close()
 }
 
+// handleCtl is the dashboard control channel. The phone connects with its
+// session token (role=phone); car browsers connect with just the code
+// (role=car). Text frames are relayed verbatim between the two sides.
+func handleCtl(w http.ResponseWriter, r *http.Request) {
+	s := reg.get(r.URL.Query().Get("code"))
+	if s == nil {
+		http.Error(w, "unknown session", http.StatusNotFound)
+		return
+	}
+	role := r.URL.Query().Get("role")
+	if role == "phone" && s.token != r.URL.Query().Get("token") {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+
+	if role == "phone" {
+		s.mu.Lock()
+		if s.ctlPhone != nil {
+			s.ctlPhone.Close()
+		}
+		s.ctlPhone = conn
+		cars := len(s.ctlCars)
+		s.mu.Unlock()
+		log.Printf("ctl phone connected %s (%d cars)", s.code, cars)
+		for {
+			msgType, data, err := conn.ReadMessage()
+			if err != nil {
+				break
+			}
+			if msgType != websocket.TextMessage {
+				continue
+			}
+			s.mu.Lock()
+			for car := range s.ctlCars {
+				car.WriteMessage(websocket.TextMessage, data)
+			}
+			s.mu.Unlock()
+		}
+		s.mu.Lock()
+		if s.ctlPhone == conn {
+			s.ctlPhone = nil
+			for car := range s.ctlCars {
+				car.WriteMessage(websocket.TextMessage, []byte(`{"type":"phoneOffline"}`))
+			}
+		}
+		s.mu.Unlock()
+		conn.Close()
+		return
+	}
+
+	// role=car
+	s.mu.Lock()
+	s.ctlCars[conn] = struct{}{}
+	phone := s.ctlPhone
+	s.mu.Unlock()
+	if phone != nil {
+		phone.WriteMessage(websocket.TextMessage, []byte(`{"type":"carJoined"}`))
+	}
+	for {
+		msgType, data, err := conn.ReadMessage()
+		if err != nil {
+			break
+		}
+		if msgType != websocket.TextMessage {
+			continue
+		}
+		s.mu.Lock()
+		phone := s.ctlPhone
+		s.mu.Unlock()
+		if phone != nil {
+			phone.WriteMessage(websocket.TextMessage, data)
+		}
+	}
+	s.mu.Lock()
+	delete(s.ctlCars, conn)
+	s.mu.Unlock()
+	conn.Close()
+}
+
 func handleConfig(w http.ResponseWriter, r *http.Request) {
 	s := reg.get(strings.TrimPrefix(r.URL.Path, "/config/"))
 	w.Header().Set("Content-Type", "application/json")
@@ -379,7 +471,22 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleViewerPage(w http.ResponseWriter, r *http.Request) {
-	code := strings.ToUpper(strings.Trim(r.URL.Path, "/"))
+	path := strings.Trim(r.URL.Path, "/")
+
+	// /{code}/play -> interactive dashboard
+	if strings.HasSuffix(path, "/play") {
+		code := strings.ToUpper(strings.TrimSuffix(path, "/play"))
+		if len(code) != codeLength || reg.get(code) == nil {
+			http.Error(w, "That code was not found. Check the T-Stream app on your iPhone.", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		io.WriteString(w, strings.ReplaceAll(dashboardHTML, "{{CODE}}", code))
+		return
+	}
+
+	code := strings.ToUpper(path)
 	if len(code) != codeLength || reg.get(code) == nil {
 		http.Error(w, "That stream code was not found. Check the code in your T-Stream app.", http.StatusNotFound)
 		return
@@ -396,6 +503,7 @@ func main() {
 	mux.HandleFunc("/api/session", handleNewSession)
 	mux.HandleFunc("/ingest", handleIngest)
 	mux.HandleFunc("/ws", handleViewerWS)
+	mux.HandleFunc("/ctl", handleCtl)
 	mux.HandleFunc("/config/", handleConfig)
 	mux.Handle("/static/", http.FileServer(http.FS(staticFS)))
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { io.WriteString(w, "ok") })
