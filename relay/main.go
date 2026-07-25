@@ -395,11 +395,36 @@ func handleCtl(w http.ResponseWriter, r *http.Request) {
 		cars := len(s.ctlCars)
 		s.mu.Unlock()
 		log.Printf("ctl phone connected %s (%d cars)", s.code, cars)
+
+		// Heartbeat: a suspended iPhone leaves a half-open TCP connection
+		// that would otherwise look "connected" forever.
+		conn.SetReadDeadline(time.Now().Add(45 * time.Second))
+		conn.SetPongHandler(func(string) error {
+			conn.SetReadDeadline(time.Now().Add(45 * time.Second))
+			return nil
+		})
+		stopPing := make(chan struct{})
+		go func() {
+			ticker := time.NewTicker(15 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-stopPing:
+					return
+				case <-ticker.C:
+					s.mu.Lock()
+					conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second))
+					s.mu.Unlock()
+				}
+			}
+		}()
+
 		for {
 			msgType, data, err := conn.ReadMessage()
 			if err != nil {
 				break
 			}
+			conn.SetReadDeadline(time.Now().Add(45 * time.Second))
 			if msgType != websocket.TextMessage {
 				continue
 			}
@@ -409,6 +434,7 @@ func handleCtl(w http.ResponseWriter, r *http.Request) {
 			}
 			s.mu.Unlock()
 		}
+		close(stopPing)
 		s.mu.Lock()
 		if s.ctlPhone == conn {
 			s.ctlPhone = nil
@@ -418,17 +444,17 @@ func handleCtl(w http.ResponseWriter, r *http.Request) {
 		}
 		s.mu.Unlock()
 		conn.Close()
+		log.Printf("ctl phone disconnected %s", s.code)
 		return
 	}
 
 	// role=car
 	s.mu.Lock()
 	s.ctlCars[conn] = struct{}{}
-	phone := s.ctlPhone
-	s.mu.Unlock()
-	if phone != nil {
-		phone.WriteMessage(websocket.TextMessage, []byte(`{"type":"carJoined"}`))
+	if s.ctlPhone != nil {
+		s.ctlPhone.WriteMessage(websocket.TextMessage, []byte(`{"type":"carJoined"}`))
 	}
+	s.mu.Unlock()
 	for {
 		msgType, data, err := conn.ReadMessage()
 		if err != nil {
@@ -438,11 +464,10 @@ func handleCtl(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		s.mu.Lock()
-		phone := s.ctlPhone
-		s.mu.Unlock()
-		if phone != nil {
-			phone.WriteMessage(websocket.TextMessage, data)
+		if s.ctlPhone != nil {
+			s.ctlPhone.WriteMessage(websocket.TextMessage, data)
 		}
+		s.mu.Unlock()
 	}
 	s.mu.Lock()
 	delete(s.ctlCars, conn)
