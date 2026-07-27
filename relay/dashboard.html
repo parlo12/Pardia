@@ -42,6 +42,29 @@
   #speedVal { font-size: 34px; font-weight: 800; }
   #speedUnit { font-size: 12px; color: rgba(255,255,255,.5); letter-spacing: 1px; }
 
+  /* ---- Navigation ---- */
+  #navSearch { position: absolute; left: 14px; top: 14px; z-index: 600; width: 60%; max-width: 380px; }
+  #destInput { width: 100%; padding: 14px 16px; font-size: 18px; border: 1px solid rgba(255,255,255,.2);
+    border-radius: 12px; background: rgba(10,10,10,.92); color: #fff; outline: none; }
+  #destResults { margin-top: 6px; border-radius: 12px; overflow: hidden; }
+  .destItem { display: block; width: 100%; text-align: left; padding: 14px 16px; font-size: 16px;
+    background: rgba(10,10,10,.94); color: #fff; border: 0; border-bottom: 1px solid rgba(255,255,255,.08);
+    cursor: pointer; }
+  .destItem small { display: block; color: rgba(255,255,255,.45); margin-top: 2px; }
+  .destItem:active { background: #e82127; }
+  #navBanner { position: absolute; left: 50%; transform: translateX(-50%); top: 14px; z-index: 650;
+    display: none; align-items: center; gap: 14px; background: rgba(10,60,20,.92);
+    border: 1px solid rgba(255,255,255,.2); border-radius: 14px; padding: 12px 18px; max-width: 70%; }
+  #navBanner.visible { display: flex; }
+  #navDist { font-size: 26px; font-weight: 800; white-space: nowrap; }
+  #navText { font-size: 17px; color: rgba(255,255,255,.85); }
+  #navEnd { background: rgba(255,255,255,.15); border: 0; color: #fff; border-radius: 10px;
+    padding: 10px 14px; font-size: 16px; cursor: pointer; }
+  #navEta { position: absolute; right: 16px; bottom: 16px; z-index: 600; display: none;
+    background: rgba(0,0,0,.8); border: 1px solid rgba(255,255,255,.15); border-radius: 12px;
+    padding: 10px 16px; font-size: 17px; }
+  #navEta.visible { display: block; }
+
   /* ---- Bottom bar ---- */
   #bar { grid-column: 1 / -1; display: flex; gap: 14px; align-items: center; }
   .barTile { flex: 1; background: #111; border: 1px solid rgba(255,255,255,.09);
@@ -70,6 +93,18 @@
   <div class="tile" id="mapTile">
     <div id="map"></div>
     <div id="speedBadge"><div id="speedVal">--</div><div id="speedUnit">MPH</div></div>
+    <div id="navSearch">
+      <input id="destInput" placeholder="Where to?" autocomplete="off">
+      <div id="destResults"></div>
+    </div>
+    <div id="navBanner">
+      <div>
+        <div id="navDist"></div>
+        <div id="navText"></div>
+      </div>
+      <button id="navEnd">End</button>
+    </div>
+    <div id="navEta"></div>
   </div>
 
   <div id="bar">
@@ -148,6 +183,8 @@
       if (followCar) map.panTo(pos, { animate: true });
       document.getElementById('speedVal').textContent =
         msg.speedMph >= 0 ? Math.round(msg.speedMph) : '--';
+      lastPos = pos;
+      if (navActive) updateGuidance(pos);
     } else if (msg.type === 'mirror') {
       var tile = document.getElementById('mirrorTile');
       if (msg.code) { tile.href = '/' + msg.code; }
@@ -156,6 +193,174 @@
     } else if (msg.type === 'phoneOnline') {
       setStatus('connected', false);
     }
+  }
+
+  // ================= Navigation =================
+  var lastPos = null, navActive = false, navDest = null;
+  var routeLine = null, destMarker = null, steps = [], stepIdx = 0;
+  var offRouteCount = 0, lastReroute = 0, searchTimer = null;
+
+  var ROUTER = 'https://router.project-osrm.org/route/v1/driving/';   // swap for keyed provider at launch
+  var GEOCODER = 'https://photon.komoot.io/api/';
+
+  function haversineM(a, b) {
+    var R = 6371000, dLat = (b[0] - a[0]) * Math.PI / 180, dLon = (b[1] - a[1]) * Math.PI / 180;
+    var s = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(a[0] * Math.PI / 180) * Math.cos(b[0] * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return 2 * R * Math.asin(Math.sqrt(s));
+  }
+  function fmtDist(m) {
+    var ft = m * 3.28084;
+    if (ft < 900) return Math.round(ft / 50) * 50 + ' ft';
+    return (m / 1609.34).toFixed(1) + ' mi';
+  }
+  function fmtEta(sec, meters) {
+    var min = Math.round(sec / 60);
+    return (meters / 1609.34).toFixed(1) + ' mi · ' + (min < 60 ? min + ' min' : Math.floor(min / 60) + ' h ' + (min % 60) + ' min');
+  }
+
+  // --- destination search (Photon) ---
+  document.getElementById('destInput').addEventListener('input', function () {
+    var q = this.value.trim();
+    clearTimeout(searchTimer);
+    if (q.length < 3) { document.getElementById('destResults').innerHTML = ''; return; }
+    searchTimer = setTimeout(function () {
+      var bias = lastPos ? '&lat=' + lastPos[0] + '&lon=' + lastPos[1] : '';
+      fetch(GEOCODER + '?q=' + encodeURIComponent(q) + '&limit=5' + bias)
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var wrap = document.getElementById('destResults');
+          wrap.innerHTML = '';
+          (data.features || []).forEach(function (f) {
+            var p = f.properties, c = f.geometry.coordinates;
+            var b = document.createElement('button');
+            b.className = 'destItem';
+            b.innerHTML = (p.name || q) + '<small>' +
+              [p.street, p.city, p.state].filter(Boolean).join(', ') + '</small>';
+            b.onclick = function () { startNavigation([c[1], c[0]], p.name || q); };
+            wrap.appendChild(b);
+          });
+        }).catch(function () {});
+    }, 450);
+  });
+
+  function startNavigation(dest, label) {
+    if (!lastPos) { alert('Waiting for your phone GPS — try again in a few seconds.'); return; }
+    navDest = dest;
+    document.getElementById('destResults').innerHTML = '';
+    document.getElementById('destInput').value = label;
+    fetchRoute(lastPos, dest);
+  }
+
+  function fetchRoute(from, to) {
+    var url = ROUTER + from[1] + ',' + from[0] + ';' + to[1] + ',' + to[0] +
+      '?overview=full&geometries=geojson&steps=true';
+    fetch(url).then(function (r) { return r.json(); }).then(function (data) {
+      if (!data.routes || !data.routes.length) { alert('No route found.'); return; }
+      var route = data.routes[0];
+      steps = route.legs[0].steps;
+      stepIdx = 0;
+      offRouteCount = 0;
+      if (routeLine) map.removeLayer(routeLine);
+      if (destMarker) map.removeLayer(destMarker);
+      routeLine = L.geoJSON(route.geometry, { style: { color: '#e82127', weight: 6, opacity: 0.85 } }).addTo(map);
+      destMarker = L.circleMarker([to[0], to[1]], {
+        radius: 9, color: '#fff', weight: 2, fillColor: '#2ecc71', fillOpacity: 1,
+      }).addTo(map);
+      map.fitBounds(routeLine.getBounds(), { padding: [60, 60] });
+      navActive = true;
+      followCar = true;
+      document.getElementById('navBanner').className = 'visible';
+      document.getElementById('navEta').className = 'visible';
+      document.getElementById('navEta').textContent = fmtEta(route.duration, route.distance);
+      updateBanner(steps[0], 0);
+      speak(instructionText(steps[0]));
+    }).catch(function () { alert('Routing service unavailable — try again.'); });
+  }
+
+  function endNavigation() {
+    navActive = false;
+    navDest = null;
+    steps = [];
+    if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+    if (destMarker) { map.removeLayer(destMarker); destMarker = null; }
+    document.getElementById('navBanner').className = '';
+    document.getElementById('navEta').className = '';
+    document.getElementById('destInput').value = '';
+  }
+  document.getElementById('navEnd').onclick = endNavigation;
+
+  function instructionText(step) {
+    if (!step) return '';
+    var m = step.maneuver, name = step.name ? ' onto ' + step.name : '';
+    var mod = (m.modifier || '').replace('slight ', 'slightly ');
+    switch (m.type) {
+      case 'depart': return 'Head out' + (step.name ? ' on ' + step.name : '');
+      case 'arrive': return 'You have arrived';
+      case 'turn': case 'end of road': return 'Turn ' + mod + name;
+      case 'continue': case 'new name': return 'Continue' + (step.name ? ' on ' + step.name : '');
+      case 'merge': return 'Merge ' + mod + name;
+      case 'on ramp': return 'Take the ramp ' + mod + name;
+      case 'off ramp': return 'Take the exit ' + mod + name;
+      case 'fork': return 'Keep ' + mod + ' at the fork' + name;
+      case 'roundabout': case 'rotary':
+        return 'At the roundabout, take exit ' + (m.exit || 1) + name;
+      default: return ('' + m.type).charAt(0).toUpperCase() + ('' + m.type).slice(1) + ' ' + mod + name;
+    }
+  }
+
+  function updateBanner(step, distM) {
+    document.getElementById('navText').textContent = instructionText(step);
+    document.getElementById('navDist').textContent = fmtDist(distM);
+  }
+
+  function updateGuidance(pos) {
+    if (!steps.length) return;
+    var step = steps[stepIdx];
+    var target = [step.maneuver.location[1], step.maneuver.location[0]];
+    var d = haversineM(pos, target);
+    updateBanner(step, d);
+
+    if (d < 35 && stepIdx < steps.length - 1) {
+      stepIdx += 1;
+      var next = steps[stepIdx];
+      speak(instructionText(next));
+      updateBanner(next, haversineM(pos, [next.maneuver.location[1], next.maneuver.location[0]]));
+      if (next.maneuver.type === 'arrive') {
+        setTimeout(endNavigation, 8000);
+      }
+    }
+
+    // remaining distance/time from current step onward
+    var remDist = 0, remDur = 0;
+    for (var i = stepIdx; i < steps.length; i++) { remDist += steps[i].distance; remDur += steps[i].duration; }
+    document.getElementById('navEta').textContent = fmtEta(remDur, remDist);
+
+    // off-route: distance to nearest route vertex
+    if (routeLine) {
+      var coords = routeLine.getLayers()[0].feature.geometry.coordinates;
+      var best = Infinity;
+      for (var j = 0; j < coords.length; j += 3) {
+        var dd = haversineM(pos, [coords[j][1], coords[j][0]]);
+        if (dd < best) best = dd;
+      }
+      if (best > 60) {
+        offRouteCount += 1;
+        if (offRouteCount >= 3 && Date.now() - lastReroute > 12000 && navDest) {
+          lastReroute = Date.now();
+          offRouteCount = 0;
+          speak('Rerouting');
+          fetchRoute(pos, navDest);
+        }
+      } else {
+        offRouteCount = 0;
+      }
+    }
+  }
+
+  function speak(text) {
+    if (text) send({ type: 'cmd', action: 'speak', text: text });
   }
 
   document.getElementById('playBtn').onclick = function () { send({ type: 'cmd', action: 'toggle' }); };
