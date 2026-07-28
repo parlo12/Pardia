@@ -94,7 +94,7 @@
     <div id="map"></div>
     <div id="speedBadge"><div id="speedVal">--</div><div id="speedUnit">MPH</div></div>
     <div id="navSearch">
-      <input id="destInput" placeholder="Where to?" autocomplete="off">
+      <input id="destInput" placeholder="Where to?  (press Enter for exact address)" autocomplete="off">
       <div id="destResults"></div>
     </div>
     <div id="navBanner">
@@ -243,6 +243,40 @@
           });
         }).catch(function () {});
     }, 450);
+  });
+
+  // Exact-address search on Enter: Nominatim parses US street addresses far
+  // better than Photon (one-shot only, per their usage policy — no autocomplete).
+  document.getElementById('destInput').addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    clearTimeout(searchTimer);
+    var q = this.value.trim();
+    if (q.length < 3) return;
+    fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=' + encodeURIComponent(q))
+      .then(function (r) { return r.json(); })
+      .then(function (rows) {
+        var wrap = document.getElementById('destResults');
+        wrap.innerHTML = '';
+        if (!rows.length) {
+          var none = document.createElement('button');
+          none.className = 'destItem';
+          none.textContent = 'No matches — try adding city and state';
+          wrap.appendChild(none);
+          return;
+        }
+        rows.forEach(function (r) {
+          var parts = (r.display_name || '').split(', ');
+          var b = document.createElement('button');
+          b.className = 'destItem';
+          b.innerHTML = parts.slice(0, 2).join(' ') +
+            '<small>' + parts.slice(2, 5).join(', ') + '</small>';
+          b.onclick = function () {
+            startNavigation([parseFloat(r.lat), parseFloat(r.lon)], parts.slice(0, 2).join(' '));
+          };
+          wrap.appendChild(b);
+        });
+      }).catch(function () {});
   });
 
   function startNavigation(dest, label) {
